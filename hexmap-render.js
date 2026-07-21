@@ -33,10 +33,9 @@
   // dependency beyond a normal system sans-serif.
   const TERRAIN_ICONS = {
     unknown: "◌", // dotted circle — undetermined
-    desert: "☰", // dunes (trigram for heaven)
+    desert: "ψ", // psi (moved here from grassland)
     arctic: "✳", // eight-spoked asterisk — frost
     swamp: "☵", // broken bars (trigram for water) — murky wetland
-    grassland: "ψ", // psi — a tuft of grass
     forest: "♣", // club — tree canopy
     jungle: "♧", // white club — denser canopy
     river: "∿", // sine wave — flowing water

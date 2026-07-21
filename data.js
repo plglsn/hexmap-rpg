@@ -11,7 +11,7 @@ const HEX_DATA = {
   "unknown": "#726e7d",
   "desert": "#e0c068",
   "arctic": "#e8f0f2",
-  "swamp": "#6b7a4f",
+  "swamp": "#b19cd9",
   "grassland": "#c9d97a",
   "forest": "#4f7942",
   "jungle": "#2f7a4f",

@@ -69,6 +69,11 @@ html, body {
   width: 130px;
 }
 
+#sync-status {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 #toolbar button, #sidebar button {
   background: #21262d;
   color: var(--text);
