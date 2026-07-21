@@ -517,12 +517,14 @@
       ctx.closePath();
 
       if (hideFromViewer) {
-        ctx.fillStyle = "#1c2128";
-        ctx.fill();
-        this._paintFogHatch(ctx, corners, center);
-        ctx.lineWidth = 0.6;
-        ctx.strokeStyle = "rgba(0,0,0,0.45)";
-        ctx.stroke();
+        // Public build only: don't draw the hex at all (no fill, no fog
+        // block, no border) unless it has a rumour to show. Filling every
+        // unrevealed hex as a solid fog tile would still trace out the
+        // full grid — showing players exactly how big the map is even
+        // though they've only explored a corner of it. Leaving unexplored,
+        // rumour-less hexes fully untouched means only the explored area
+        // and rumoured hexes are visible at all; everything else is just
+        // blank background, panable forever with no edge to find.
         if (hex.rumours) this._paintRumourMarker(ctx, center);
         return;
       }
@@ -677,7 +679,12 @@
           const center = this.hexCenter(col, row);
           const screen = this.worldToScreen(center.x, center.y);
 
-          if (isSelected || isHover) {
+          // Skip the hover/selection outline on a hex that isn't otherwise
+          // drawn at all (public build, unrevealed, no rumour) — an
+          // outline appearing under the cursor over "empty" space would
+          // itself reveal the hex grid out there, undermining the point of
+          // not painting it in the first place.
+          if ((isSelected || isHover) && (!hideFromViewer || hex.rumours)) {
             const corners = this.hexCorners(center.x, center.y).map((p) => this.worldToScreen(p.x, p.y));
             ctx.beginPath();
             corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));

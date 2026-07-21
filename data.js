@@ -7883,5 +7883,21 @@ const HEX_DATA = {
   "Natural Wonder",
   "Other"
  ],
- "rivers": {}
+ "rivers": {
+  "river_mruv4pvpo4kv": {
+   "name": "",
+   "notes": "",
+   "path": [
+    "11,44",
+    "10,45",
+    "9,45",
+    "8,46",
+    "7,46",
+    "6,47",
+    "5,47",
+    "4,47",
+    "3,46"
+   ]
+  }
+ }
 };
