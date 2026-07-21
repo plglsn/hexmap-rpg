@@ -212,12 +212,23 @@ html, body {
 
 #sidebar .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
 }
 
 #sidebar .actions button {
-  flex: 1;
+  flex: 1 1 auto;
+}
+
+#clipboard-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+#clipboard-status a {
+  color: var(--accent);
 }
 
 #save-status {
