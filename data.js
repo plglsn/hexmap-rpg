@@ -605,11 +605,11 @@ const HEX_DATA = {
   },
   "3,44": {
    "terrain": "desert",
-   "name": "",
+   "name": "Swamp Dragon",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "Natural Wonder"
   },
   "3,45": {
    "terrain": "grassland",
@@ -1526,11 +1526,11 @@ const HEX_DATA = {
   },
   "8,46": {
    "terrain": "grassland",
-   "name": "",
+   "name": "Tower with Portal",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "Landmark"
   },
   "8,47": {
    "terrain": "desert",
@@ -1705,11 +1705,11 @@ const HEX_DATA = {
   },
   "9,44": {
    "terrain": "grassland",
-   "name": "",
+   "name": "Ancient Dolmens",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "Landmark"
   },
   "9,45": {
    "terrain": "forest",
@@ -2054,6 +2054,7 @@ const HEX_DATA = {
    "revealed": false
   },
   "11,39": {
+   "rumours": "Pirate Ship moored here",
    "revealed": false
   },
   "11,40": {
@@ -2085,11 +2086,11 @@ const HEX_DATA = {
   },
   "11,44": {
    "terrain": "forest",
-   "name": "",
+   "name": "Memnon Shrine with Crypt",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "Shrine"
   },
   "11,45": {
    "terrain": "desert",
@@ -2265,11 +2266,11 @@ const HEX_DATA = {
   },
   "12,44": {
    "terrain": "mountain",
-   "name": "",
+   "name": "Wizard's Tower",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "Fortress"
   },
   "12,45": {
    "terrain": "forest",
@@ -7862,7 +7863,15 @@ const HEX_DATA = {
    "revealed": false
   }
  },
- "entities": {},
+ "entities": {
+  "entity_mruuk2pakssk": {
+   "type": "npc",
+   "name": "Challenger Gladiator",
+   "notes": "",
+   "hex": "3,44",
+   "revealed": true
+  }
+ },
  "poiTypes": [
   "Settlement",
   "Ruins",

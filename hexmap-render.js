@@ -411,45 +411,93 @@
       this._bitmapDirty = false;
     }
 
-    // Rivers are drawn as straight hex-center-to-hex-center segments on top
-    // of terrain, one river-length pass after all hex fills are painted.
-    // Each segment's visibility is decided independently by its two
-    // endpoint hexes' revealed state — a river crossing from explored into
-    // unexplored territory just fades out at the boundary instead of
-    // leaking the unexplored portion's shape.
+    // One hex-center-to-hex-center segment of a river, on top of terrain.
+    // Visibility is decided by the two endpoint hexes' revealed state — a
+    // river crossing from explored into unexplored territory just fades
+    // out at the boundary instead of leaking the unexplored portion's
+    // shape.
+    _paintRiverSegment(ctx, keyA, keyB) {
+      const a = this._keyToColRow(keyA);
+      const b = this._keyToColRow(keyB);
+      if (!a || !b) return;
+      const hexA = this.getHex(a.col, a.row);
+      const hexB = this.getHex(b.col, b.row);
+      if (!hexA || !hexB) return;
+      const revealedA = hexA.revealed !== false;
+      const revealedB = hexB.revealed !== false;
+      if (this.opts.respectFog && (!revealedA || !revealedB)) return;
+
+      const centerA = this.hexCenter(a.col, a.row);
+      const centerB = this.hexCenter(b.col, b.row);
+
+      ctx.save();
+      if (!this.opts.respectFog && (!revealedA || !revealedB)) {
+        // GM-only: fainter + dashed to flag it crosses fogged ground.
+        ctx.globalAlpha = 0.5;
+        ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
+      }
+      ctx.strokeStyle = "#4fa3d1";
+      ctx.lineWidth = Math.max(1.5, this.size * 0.16);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(centerA.x, centerA.y);
+      ctx.lineTo(centerB.x, centerB.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Rivers are drawn as chains of _paintRiverSegment() calls, one
+    // river-length pass after all hex fills are painted. On top of each
+    // river's own path, an end that borders open water (ocean/coast/lake)
+    // or another river's end gets an extra connecting segment out to that
+    // neighboring hex — so a river visibly flows into the sea or joins a
+    // tributary without the GM having to click that hex into its own path.
     _paintRivers(ctx) {
       const rivers = this.data.rivers || {};
-      Object.keys(rivers).forEach((id) => {
+      const ids = Object.keys(rivers);
+      const WATER_TERRAINS = { ocean: true, coast: true, lake: true };
+
+      // hexKey -> set of river ids that start or end there, so a
+      // neighboring river's end can be found in O(1) instead of rescanning
+      // every other river for every endpoint.
+      const endpointOwners = {};
+      ids.forEach((id) => {
+        const path = rivers[id].path || [];
+        if (!path.length) return;
+        [path[0], path[path.length - 1]].forEach((key) => {
+          (endpointOwners[key] = endpointOwners[key] || new Set()).add(id);
+        });
+      });
+
+      const drawnConnections = new Set(); // dedupe shared endpoint<->neighbor pairs
+
+      ids.forEach((id) => {
         const path = rivers[id].path || [];
         for (let i = 0; i < path.length - 1; i++) {
-          const a = this._keyToColRow(path[i]);
-          const b = this._keyToColRow(path[i + 1]);
-          if (!a || !b) continue;
-          const hexA = this.getHex(a.col, a.row);
-          const hexB = this.getHex(b.col, b.row);
-          if (!hexA || !hexB) continue;
-          const revealedA = hexA.revealed !== false;
-          const revealedB = hexB.revealed !== false;
-          if (this.opts.respectFog && (!revealedA || !revealedB)) continue;
-
-          const centerA = this.hexCenter(a.col, a.row);
-          const centerB = this.hexCenter(b.col, b.row);
-
-          ctx.save();
-          if (!this.opts.respectFog && (!revealedA || !revealedB)) {
-            // GM-only: fainter + dashed to flag it crosses fogged ground.
-            ctx.globalAlpha = 0.5;
-            ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
-          }
-          ctx.strokeStyle = "#4fa3d1";
-          ctx.lineWidth = Math.max(1.5, this.size * 0.16);
-          ctx.lineCap = "round";
-          ctx.beginPath();
-          ctx.moveTo(centerA.x, centerA.y);
-          ctx.lineTo(centerB.x, centerB.y);
-          ctx.stroke();
-          ctx.restore();
+          this._paintRiverSegment(ctx, path[i], path[i + 1]);
         }
+        if (!path.length) return;
+
+        const endpoints = path.length > 1 ? [path[0], path[path.length - 1]] : [path[0]];
+        endpoints.forEach((key) => {
+          const pos = this._keyToColRow(key);
+          if (!pos) return;
+          this.neighbors(pos.col, pos.row).forEach((n) => {
+            const nKey = this.hexKey(n.col, n.row);
+            if (path.indexOf(nKey) !== -1) return; // already part of this river's own path
+
+            const nHex = this.getHex(n.col, n.row);
+            const isWater = !!(nHex && WATER_TERRAINS[nHex.terrain]);
+            const otherRiverHere =
+              endpointOwners[nKey] && Array.from(endpointOwners[nKey]).some((otherId) => otherId !== id);
+            if (!isWater && !otherRiverHere) return;
+
+            const dedupeKey = [key, nKey].sort().join("|");
+            if (drawnConnections.has(dedupeKey)) return;
+            drawnConnections.add(dedupeKey);
+            this._paintRiverSegment(ctx, key, nKey);
+          });
+        });
       });
     }
 
