@@ -129,7 +129,7 @@
 
   // ---- NPCs / events / locations (read-only) ----
 
-  const ENTITY_TYPE_LABELS = { npc: "NPC", event: "Event", location: "Location" };
+  const ENTITY_TYPE_LABELS = { npc: "NPC", event: "Event", location: "Location", item: "Item" };
 
   function entityCardHtml(e) {
     return `
@@ -172,7 +172,7 @@
       entitiesModalList.innerHTML = '<p class="empty-hint">Nothing discovered yet.</p>';
       return;
     }
-    const grouped = { npc: [], event: [], location: [] };
+    const grouped = { npc: [], event: [], location: [], item: [] };
     all.forEach((e) => grouped[e.type] && grouped[e.type].push(e));
 
     let html = "";

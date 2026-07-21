@@ -25,6 +25,7 @@
     npc: { color: "#4a90e2", label: "♟" }, // chess pawn — a character/agent
     event: { color: "#e2794a", label: "‼" }, // double exclamation — something's happening
     location: { color: "#a24ae2", label: "⚑" }, // black flag — waypoint
+    item: { color: "#c9a227", label: "◈" }, // gem — artefacts, keys, treasure
   };
 
   // Plain-text Unicode symbols only (no color emoji) so they render as a
