@@ -22,6 +22,7 @@
   </div>
 
   <div id="sidebar">
+    <button id="sidebar-close-btn">✕ Close</button>
     <div id="sidebar-content">
       <p class="placeholder">Click a hex to view it.<br><br>Scroll to zoom, drag to pan.</p>
     </div>
@@ -66,7 +67,17 @@
   }
   buildLegend();
 
+  const sidebarPanel = document.getElementById("sidebar");
+  document.getElementById("sidebar-close-btn").addEventListener("click", () => {
+    sidebarPanel.classList.remove("open");
+  });
+
   function renderSidebar(hit) {
+    // On narrow screens the sidebar is a slide-up sheet, hidden until a
+    // hex is picked — toggling this class is a no-op on wider screens
+    // where the sidebar is always visible anyway.
+    sidebarPanel.classList.toggle("open", !!hit);
+
     if (!hit) {
       sidebar.innerHTML = '<p class="placeholder">Click a hex to view it.<br><br>Scroll to zoom, drag to pan.</p>';
       return;

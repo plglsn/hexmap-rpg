@@ -134,6 +134,10 @@ html, body {
   overflow-y: auto;
 }
 
+#sidebar-close-btn {
+  display: none; /* only shown on narrow screens, see media query below */
+}
+
 #sidebar h2 {
   font-size: 16px;
   margin: 0 0 4px;
@@ -517,4 +521,65 @@ html, body {
 
 .entity-list-row .entity-list-dim {
   opacity: 0.55;
+}
+
+/* ---- narrow screens (phones, small tablets) ---- */
+/* The sidebar's fixed 320px width used to eat almost the entire viewport
+   on a phone, leaving barely a sliver for the map. Below this width the
+   map goes full-screen and the sidebar becomes a bottom sheet instead —
+   hidden until a hex is selected, then sliding up over the map rather
+   than squeezing it. */
+@media (max-width: 760px) {
+  #sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 65vh;
+    border-left: none;
+    border-top: 1px solid var(--panel-border);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+    transform: translateY(100%);
+    transition: transform 0.22s ease;
+    z-index: 20;
+    padding-top: 8px;
+  }
+
+  #sidebar.open {
+    transform: translateY(0);
+  }
+
+  #sidebar-close-btn {
+    display: block;
+    position: sticky;
+    top: 0;
+    margin: 0 0 8px auto;
+    background: #21262d;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+
+  #toolbar {
+    max-width: calc(100vw - 24px);
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  #toolbar input[type="text"] {
+    width: 100px;
+  }
+
+  #legend {
+    max-width: calc(100vw - 24px);
+  }
+
+  #entities-modal, #rivers-modal {
+    max-width: calc(100vw - 24px);
+  }
 }
