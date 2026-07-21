@@ -1,0 +1,8 @@
+# The master data file — contains GM secrets. Never commit this.
+/data.json
+
+# The full GM data bundle (unstripped, includes secrets). build.py
+# regenerates this locally; it should never leave your machine.
+/gm/data.js
+
+.DS_Store

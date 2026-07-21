@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hexcrawl Map — GM Edition</title>
+<link rel="stylesheet" href="hexmap.css" />
+</head>
+<body>
+<div id="app">
+  <div id="map-wrap">
+    <canvas id="map-canvas"></canvas>
+
+    <div id="toolbar">
+      <h1>Hexcrawl<span class="gm-badge">GM ONLY</span></h1>
+      <input type="text" id="jump-input" placeholder="col,row e.g. 12,8" />
+      <button id="jump-btn">Go</button>
+      <button id="reveal-all-btn">Reveal all</button>
+      <button id="hide-all-btn">Hide all</button>
+      <button id="blank-all-btn">Set all to Unknown</button>
+      <button id="entities-panel-btn">NPCs &amp; Events</button>
+      <button id="export-btn">Export data.json</button>
+      <button id="import-btn">Import…</button>
+      <input type="file" id="import-file" accept="application/json" />
+    </div>
+
+    <div id="placement-banner">
+      <span id="placement-banner-text"></span>
+      <button id="placement-cancel-btn">Cancel (Esc)</button>
+    </div>
+
+    <div id="legend"></div>
+    <div id="fog-note" style="position:absolute;bottom:12px;right:12px;z-index:5;background:rgba(22,27,34,0.85);border:1px solid var(--panel-border);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--text-dim);max-width:220px;">
+      Hatched hexes and dashed pins are hidden from the public map (fog of war). A gold "?" marks a hex with rumours recorded — those show to players even before the hex is revealed. A lighter hatch on a hex's real terrain color means its terrain is still "Unknown" — set live at the table as the party arrives.
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-content">
+      <p class="placeholder">Click a hex to view and edit it.<br><br>Scroll to zoom, drag to pan.</p>
+    </div>
+  </div>
+</div>
+
+<div id="entities-modal-backdrop">
+  <div id="entities-modal">
+    <h2>NPCs, Events &amp; Locations <button id="entities-modal-close">Close</button></h2>
+    <input type="text" id="entities-search" placeholder="Search by name…" />
+    <div class="entities-modal-new-row">
+      <button data-type="npc" class="entities-new-btn">+ New NPC</button>
+      <button data-type="event" class="entities-new-btn">+ New Event</button>
+      <button data-type="location" class="entities-new-btn">+ New Location</button>
+    </div>
+    <div id="entities-modal-list"></div>
+  </div>
+</div>
+
+<script src="hexmap-render.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  const STORAGE_KEY = "hexmap_gm_data_v1";
+
+  // Load from localStorage if present (persists edits between sessions),
+  // otherwise fall back to the shipped data.js.
+  let data = HEX_DATA;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) data = JSON.parse(saved);
+  } catch (e) {
+    console.warn("Could not read saved map data, using shipped data.js", e);
+  }
+  // Back-compat with saves made before the entities feature existed: make
+  // sure `data.entities` is a real object HexMap can mutate in place,
+  // otherwise entity edits wouldn't be reflected when we persist `data`.
+  data.entities = data.entities || {};
+
+  const canvas = document.getElementById("map-canvas");
+  const sidebar = document.getElementById("sidebar-content");
+  const legend = document.getElementById("legend");
+  const TERRAINS = Object.keys(data.terrainColors);
+  const POI_TYPES = data.poiTypes || [];
+
+  function buildLegend() {
+    legend.innerHTML = "";
+    TERRAINS.forEach((t) => {
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      const icon = HexMap.TERRAIN_ICONS[t] || "";
+      item.innerHTML = `<span class="legend-swatch" style="background:${data.terrainColors[t]}">${icon}</span>${t}`;
+      legend.appendChild(item);
+    });
+  }
+  buildLegend();
+
+  function persist() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      status("Saved to browser storage.");
+    } catch (e) {
+      status("Could not save to browser storage: " + e.message);
+    }
+  }
+
+  function status(msg) {
+    const el = document.getElementById("save-status");
+    if (el) el.textContent = msg;
+  }
+
+  function renderSidebar(hit) {
+    if (!hit) {
+      sidebar.innerHTML = '<p class="placeholder">Click a hex to view and edit it.<br><br>Scroll to zoom, drag to pan.</p>';
+      return;
+    }
+    const { col, row } = hit;
+    const hex = map.getHex(col, row) || { terrain: TERRAINS[0], name: "", notes: "", secret: "", rumours: "", poi: "" };
+
+    const terrainOptions = TERRAINS.map(
+      (t) => `<option value="${t}" ${t === hex.terrain ? "selected" : ""}>${HexMap.TERRAIN_ICONS[t] || ""} ${t}</option>`
+    ).join("");
+
+    const poiOptions =
+      `<option value="">— none —</option>` +
+      POI_TYPES.map((t) => `<option value="${t}" ${t === hex.poi ? "selected" : ""}>${HexMap.POI_ICONS[t] || ""} ${t}</option>`).join("");
+
+    const hasPoi = !!hex.poi;
+    const hasPopulation = hex.population !== undefined && hex.population !== null;
+
+    const revealed = hex.revealed !== false;
+
+    sidebar.innerHTML = `
+      <h2>Hex ${col},${row}</h2>
+      <div class="coord">Column ${col} · Row ${row}</div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--panel-border);border-radius:6px;background:${revealed ? "rgba(60,140,80,0.12)" : "rgba(0,0,0,0.25)"};">
+        <input type="checkbox" id="f-revealed" ${revealed ? "checked" : ""} style="width:16px;height:16px;" />
+        <label for="f-revealed" style="margin:0;text-transform:none;letter-spacing:normal;font-size:13px;color:var(--text);">Revealed to players</label>
+      </div>
+
+      <label for="f-terrain">Terrain</label>
+      <select id="f-terrain">${terrainOptions}</select>
+
+      <label for="f-poi">Point of interest <span style="color:var(--text-dim);font-weight:normal;">(most hexes are just terrain — leave as none)</span></label>
+      <select id="f-poi">${poiOptions}</select>
+
+      <div id="name-field-wrap" style="display:${hasPoi ? "block" : "none"};">
+        <label for="f-name">Name <span style="color:var(--text-dim);font-weight:normal;">(only shown on the map when there's a point of interest)</span></label>
+        <input type="text" id="f-name" value="${escapeAttr(hex.name || "")}" placeholder="What do the locals call this place?" />
+      </div>
+
+      <label for="f-population">Population <span style="color:var(--text-dim);font-weight:normal;">(leave blank if untracked)</span></label>
+      <input type="number" id="f-population" min="0" step="1" value="${hasPopulation ? hex.population : ""}" placeholder="not tracked" />
+
+      <label for="f-rumours">Rumours <span style="color:var(--text-dim);font-weight:normal;">(shown to players even before this hex is explored)</span></label>
+      <textarea id="f-rumours" placeholder="Things NPCs have told the party about this unexplored land...">${escapeHtml(hex.rumours || "")}</textarea>
+
+      <label for="f-notes">Public notes <span style="color:var(--text-dim);font-weight:normal;">(players can see this once the hex is revealed)</span></label>
+      <textarea id="f-notes" placeholder="What players learn on approach / exploration...">${escapeHtml(hex.notes || "")}</textarea>
+
+      <label for="f-secret" class="secret-label">GM secret <span style="color:var(--danger);font-weight:normal;">(never shown in the public build)</span></label>
+      <textarea id="f-secret" placeholder="Hidden lore, encounters, DM plans...">${escapeHtml(hex.secret || "")}</textarea>
+
+      <div class="actions">
+        <button id="save-hex-btn">Save hex</button>
+        <button id="clear-hex-btn">Clear hex</button>
+      </div>
+      <div id="save-status"></div>
+
+      ${renderEntitiesSection(col, row)}
+    `;
+
+    wireEntitiesSection(col, row);
+
+    document.getElementById("f-revealed").addEventListener("change", (e) => {
+      map.setHex(col, row, { revealed: e.target.checked });
+      persist();
+      map.draw();
+      renderSidebar(hit);
+    });
+
+    // Name is only meaningful once a hex has a point of interest — toggle
+    // its field in and out instead of always showing it.
+    document.getElementById("f-poi").addEventListener("change", (e) => {
+      document.getElementById("name-field-wrap").style.display = e.target.value ? "block" : "none";
+    });
+
+    document.getElementById("save-hex-btn").addEventListener("click", () => {
+      const popRaw = document.getElementById("f-population").value.trim();
+      const poiValue = document.getElementById("f-poi").value;
+      map.setHex(col, row, {
+        terrain: document.getElementById("f-terrain").value,
+        poi: poiValue,
+        // No POI selected means no name either, even if stray text is
+        // still sitting in the (now-hidden) name field.
+        name: poiValue ? document.getElementById("f-name").value.trim() : "",
+        // Blank population means "not tracked" — omit the field entirely
+        // rather than storing a misleading 0. setHex merges with
+        // Object.assign, and JSON.stringify drops undefined-valued keys,
+        // so this cleanly removes population from both localStorage and
+        // any exported data.json.
+        population: popRaw === "" ? undefined : Math.max(0, parseInt(popRaw, 10) || 0),
+        rumours: document.getElementById("f-rumours").value,
+        notes: document.getElementById("f-notes").value,
+        secret: document.getElementById("f-secret").value,
+      });
+      persist();
+      map.draw();
+      renderSidebar(hit);
+    });
+
+    document.getElementById("clear-hex-btn").addEventListener("click", () => {
+      map.setHex(col, row, { terrain: hex.terrain, name: "", population: undefined, poi: "", rumours: "", notes: "", secret: "" });
+      persist();
+      map.draw();
+      renderSidebar(hit);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, "&quot;");
+  }
+
+  // ---- entities (NPCs / events / locations) ----
+
+  const ENTITY_TYPE_LABELS = { npc: "NPC", event: "Event", location: "Location" };
+
+  function newEntityId() {
+    return "entity_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function entityCardHtml(id, e) {
+    const typeOptions = Object.keys(ENTITY_TYPE_LABELS)
+      .map((t) => `<option value="${t}" ${t === e.type ? "selected" : ""}>${HexMap.ENTITY_STYLES[t].label} ${ENTITY_TYPE_LABELS[t]}</option>`)
+      .join("");
+    return `
+      <div class="entity-card" data-id="${id}">
+        <div class="entity-card-row">
+          <select class="ef-type">${typeOptions}</select>
+          <input type="text" class="ef-name" value="${escapeAttr(e.name || "")}" placeholder="Name" />
+        </div>
+        <label class="ef-revealed"><input type="checkbox" class="ef-revealed-cb" ${e.revealed ? "checked" : ""} /> Revealed to players <span style="color:var(--text-dim);">(hex must be revealed too)</span></label>
+        <textarea class="ef-notes" placeholder="Public notes...">${escapeHtml(e.notes || "")}</textarea>
+        <textarea class="ef-secret" placeholder="GM secret...">${escapeHtml(e.secret || "")}</textarea>
+        <div class="entity-card-hexrow">${e.hex ? "At hex " + e.hex : "Not placed on the map"}</div>
+        <div class="entity-card-actions">
+          <button class="ef-save">Save</button>
+          <button class="ef-place">${e.hex ? "Move…" : "Place on map…"}</button>
+          ${e.hex ? '<button class="ef-unplace">Remove from hex</button>' : ""}
+          <button class="ef-delete">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function readEntityCard(card) {
+    return {
+      type: card.querySelector(".ef-type").value,
+      name: card.querySelector(".ef-name").value.trim(),
+      revealed: card.querySelector(".ef-revealed-cb").checked,
+      notes: card.querySelector(".ef-notes").value,
+      secret: card.querySelector(".ef-secret").value,
+    };
+  }
+
+  /**
+   * Delegated click/change handling for one or more .entity-card elements
+   * inside `container`. `onChange` is called after any save/move/unplace/
+   * delete so the caller can re-render its own view (sidebar section or
+   * modal list).
+   */
+  function wireEntityCards(container, onChange, onPlaceStart) {
+    container.addEventListener("click", (e) => {
+      const card = e.target.closest(".entity-card");
+      if (!card) return;
+      const id = card.dataset.id;
+
+      if (e.target.classList.contains("ef-save")) {
+        map.setEntity(id, readEntityCard(card));
+        persist();
+        map.draw();
+        onChange();
+      } else if (e.target.classList.contains("ef-place")) {
+        const entity = map.getEntity(id);
+        const label = (entity && entity.name) || "this entity";
+        if (onPlaceStart) onPlaceStart();
+        showPlacementBanner(label, () => onChange());
+        map.armPlacement(id, (hit) => {
+          map.setEntity(id, { hex: map.hexKey(hit.col, hit.row) });
+          persist();
+          map.draw();
+          hidePlacementBanner();
+          // selectHex() re-centers the map and fires onSelect(), which
+          // re-renders the sidebar for wherever the entity just landed —
+          // no separate onChange() needed here.
+          map.selectHex(hit.col, hit.row);
+        });
+      } else if (e.target.classList.contains("ef-unplace")) {
+        map.setEntity(id, { hex: null });
+        persist();
+        map.draw();
+        onChange();
+      } else if (e.target.classList.contains("ef-delete")) {
+        const entity = map.getEntity(id);
+        if (confirm(`Delete "${(entity && entity.name) || "this entity"}"? This can't be undone.`)) {
+          map.deleteEntity(id);
+          persist();
+          map.draw();
+          onChange();
+        }
+      }
+    });
+  }
+
+  function renderEntitiesSection(col, row) {
+    const list = map.entitiesAt(col, row);
+    const cards = list.length
+      ? list.map((e) => entityCardHtml(e.id, e)).join("")
+      : '<p class="empty-hint">No NPCs, events, or locations placed here.</p>';
+    return `
+      <div class="entity-section" id="hex-entities-section">
+        <div class="entity-section-header">
+          <label>Entities here</label>
+          <div class="entity-add-buttons">
+            <button data-type="npc" class="add-entity-btn">+ NPC</button>
+            <button data-type="event" class="add-entity-btn">+ Event</button>
+            <button data-type="location" class="add-entity-btn">+ Location</button>
+          </div>
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
+  function wireEntitiesSection(col, row) {
+    const section = document.getElementById("hex-entities-section");
+    if (!section) return;
+
+    wireEntityCards(section, () => renderSidebar({ col, row }));
+
+    section.querySelectorAll(".add-entity-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = newEntityId();
+        map.setEntity(id, {
+          type: btn.dataset.type,
+          name: "",
+          notes: "",
+          secret: "",
+          hex: map.hexKey(col, row),
+          revealed: false,
+        });
+        persist();
+        map.draw();
+        renderSidebar({ col, row });
+      });
+    });
+  }
+
+  // Placement-mode banner shown while armPlacement() is waiting for a click.
+  const placementBanner = document.getElementById("placement-banner");
+  const placementBannerText = document.getElementById("placement-banner-text");
+  let placementCancelHandler = null;
+
+  function showPlacementBanner(name, onCancel) {
+    placementBannerText.textContent = `Click a hex to place "${name}"…`;
+    placementBanner.classList.add("visible");
+    placementCancelHandler = onCancel;
+  }
+  function hidePlacementBanner() {
+    placementBanner.classList.remove("visible");
+    placementCancelHandler = null;
+  }
+  function cancelPlacementFlow() {
+    map.cancelPlacement();
+    const cb = placementCancelHandler;
+    hidePlacementBanner();
+    if (cb) cb();
+  }
+  document.getElementById("placement-cancel-btn").addEventListener("click", cancelPlacementFlow);
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && placementBanner.classList.contains("visible")) {
+      cancelPlacementFlow();
+    }
+  });
+
+  // ---- entities directory modal ----
+
+  const entitiesModalBackdrop = document.getElementById("entities-modal-backdrop");
+  const entitiesModalList = document.getElementById("entities-modal-list");
+  const entitiesSearch = document.getElementById("entities-search");
+
+  function renderEntitiesModalList() {
+    const query = entitiesSearch.value.trim().toLowerCase();
+    const all = map.listEntities().filter((e) => !query || (e.name || "").toLowerCase().includes(query));
+    if (!all.length) {
+      entitiesModalList.innerHTML = '<p class="empty-hint">No NPCs, events, or locations yet.</p>';
+      return;
+    }
+    const grouped = { npc: [], event: [], location: [] };
+    all.forEach((e) => grouped[e.type] && grouped[e.type].push(e));
+
+    let html = "";
+    Object.keys(ENTITY_TYPE_LABELS).forEach((type) => {
+      if (!grouped[type].length) return;
+      const typeIcon = HexMap.ENTITY_STYLES[type].label;
+      html += `<label style="margin-top:16px;">${typeIcon} ${ENTITY_TYPE_LABELS[type]}s</label>`;
+      grouped[type].forEach((e) => {
+        html += `
+          <div class="entity-list-row ${e.revealed ? "" : "entity-list-dim"}" data-id="${e.id}">
+            <span class="entity-badge entity-badge-${e.type}">${typeIcon} ${ENTITY_TYPE_LABELS[e.type]}</span>
+            <span class="entity-list-name">${escapeHtml(e.name || "(unnamed)")}</span>
+            <span class="entity-list-hex">${e.hex ? e.hex : "unplaced"}</span>
+          </div>
+          <div class="entity-list-editor" data-editor-for="${e.id}" style="display:none;"></div>
+        `;
+      });
+    });
+    entitiesModalList.innerHTML = html;
+
+    entitiesModalList.querySelectorAll(".entity-list-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const id = row.dataset.id;
+        const editor = entitiesModalList.querySelector(`[data-editor-for="${id}"]`);
+        const isOpen = editor.style.display !== "none";
+        entitiesModalList.querySelectorAll(".entity-list-editor").forEach((el) => (el.style.display = "none"));
+        if (isOpen) return;
+        editor.innerHTML = entityCardHtml(id, map.getEntity(id));
+        editor.style.display = "block";
+        wireEntityCards(editor, () => renderEntitiesModalList(), () => closeEntitiesModal());
+      });
+    });
+  }
+
+  function openEntitiesModal() {
+    entitiesSearch.value = "";
+    renderEntitiesModalList();
+    entitiesModalBackdrop.classList.add("visible");
+  }
+  function closeEntitiesModal() {
+    entitiesModalBackdrop.classList.remove("visible");
+  }
+  document.getElementById("entities-panel-btn").addEventListener("click", openEntitiesModal);
+  document.getElementById("entities-modal-close").addEventListener("click", closeEntitiesModal);
+  entitiesModalBackdrop.addEventListener("click", (e) => {
+    if (e.target === entitiesModalBackdrop) closeEntitiesModal();
+  });
+  entitiesSearch.addEventListener("input", renderEntitiesModalList);
+
+  document.querySelectorAll(".entities-new-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = newEntityId();
+      map.setEntity(id, {
+        type: btn.dataset.type,
+        name: "",
+        notes: "",
+        secret: "",
+        hex: null,
+        revealed: false,
+      });
+      persist();
+      renderEntitiesModalList();
+    });
+  });
+
+  const map = new HexMap(canvas, data, {
+    onSelect: renderSidebar,
+  });
+
+  // Toolbar: jump to hex
+  document.getElementById("jump-btn").addEventListener("click", jump);
+  document.getElementById("jump-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") jump();
+  });
+  function jump() {
+    const raw = document.getElementById("jump-input").value.trim();
+    const m = raw.match(/^(\d+)\s*,\s*(\d+)$/);
+    if (!m) return;
+    const col = parseInt(m[1], 10);
+    const row = parseInt(m[2], 10);
+    if (col >= 0 && col < data.meta.cols && row >= 0 && row < data.meta.rows) {
+      map.selectHex(col, row);
+    }
+  }
+
+  // Bulk fog-of-war controls
+  document.getElementById("reveal-all-btn").addEventListener("click", () => {
+    if (!confirm("Mark every hex as revealed to players?")) return;
+    Object.values(data.hexes).forEach((h) => (h.revealed = true));
+    map.invalidate();
+    persist();
+    map.draw();
+    renderSidebar(map.selected);
+  });
+  document.getElementById("hide-all-btn").addEventListener("click", () => {
+    if (!confirm("Mark every hex as hidden from players (reset fog of war)?")) return;
+    Object.values(data.hexes).forEach((h) => (h.revealed = false));
+    map.invalidate();
+    persist();
+    map.draw();
+    renderSidebar(map.selected);
+  });
+
+  // Blank the whole map back to "unknown" terrain — handy for starting a
+  // fresh campaign you plan to build live at the table with your players,
+  // deciding each hex's terrain as they explore it instead of pre-rolling
+  // the whole map up front. Only touches terrain; leaves names, notes,
+  // reveal state, entities, etc. alone.
+  document.getElementById("blank-all-btn").addEventListener("click", () => {
+    if (!confirm("Set every hex's terrain to Unknown? This only changes terrain — names, notes, and reveal state are untouched.")) return;
+    Object.values(data.hexes).forEach((h) => (h.terrain = "unknown"));
+    map.invalidate();
+    persist();
+    map.draw();
+    renderSidebar(map.selected);
+  });
+
+  // Export current data (including secrets) as data.json for the master file
+  document.getElementById("export-btn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "data.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Import a data.json master file to replace current state
+  document.getElementById("import-btn").addEventListener("click", () => {
+    document.getElementById("import-file").click();
+  });
+  document.getElementById("import-file").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = JSON.parse(reader.result);
+        data = imported;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        location.reload();
+      } catch (err) {
+        alert("Could not parse that file as JSON: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+})();
+</script>
+</body>
+</html>
