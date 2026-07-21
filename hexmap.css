@@ -36,6 +36,11 @@ html, body {
   width: 100%;
   height: 100%;
   cursor: grab;
+  /* Hand pan/pinch entirely to our own touch handlers — without this the
+     browser's native pinch-to-zoom/scroll fights with (or wins over) our
+     JS, zooming the whole page (fixed-position toolbar included) instead
+     of just the map. */
+  touch-action: none;
 }
 
 #map-canvas:active {

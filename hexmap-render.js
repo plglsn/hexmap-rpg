@@ -879,36 +879,83 @@
         { passive: false }
       );
 
-      // touch support (basic pan + tap)
+      // touch support: one finger pans/taps, two fingers pinch-zoom. Both
+      // call preventDefault() (and the canvas has touch-action: none in
+      // CSS) so the browser's own pinch-to-zoom/scroll never takes over —
+      // without that, a pinch zooms the whole page instead of the map,
+      // taking fixed-position UI like the toolbar along with it.
       let touchStart = null;
-      this.canvas.addEventListener("touchstart", (e) => {
-        if (e.touches.length === 1) {
-          touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: false };
-        }
-      });
-      this.canvas.addEventListener("touchmove", (e) => {
-        if (touchStart && e.touches.length === 1) {
-          const dx = e.touches[0].clientX - touchStart.x;
-          const dy = e.touches[0].clientY - touchStart.y;
-          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) touchStart.moved = true;
-          this.offsetX += dx;
-          this.offsetY += dy;
-          touchStart.x = e.touches[0].clientX;
-          touchStart.y = e.touches[0].clientY;
-          this.scheduleDraw();
-        }
-      });
+      let pinch = null;
+
+      const touchDist = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const touchMid = (t0, t1) => ({ x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 });
+
+      this.canvas.addEventListener(
+        "touchstart",
+        (e) => {
+          if (e.touches.length === 1) {
+            touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: false };
+            pinch = null;
+          } else if (e.touches.length === 2) {
+            touchStart = null;
+            const rect = this.canvas.getBoundingClientRect();
+            const mid = touchMid(e.touches[0], e.touches[1]);
+            pinch = {
+              startDist: touchDist(e.touches[0], e.touches[1]) || 1,
+              startScale: this.scale,
+              worldMid: this.screenToWorld(mid.x - rect.left, mid.y - rect.top),
+            };
+          }
+        },
+        { passive: false }
+      );
+      this.canvas.addEventListener(
+        "touchmove",
+        (e) => {
+          if (e.touches.length === 2 && pinch) {
+            e.preventDefault();
+            const rect = this.canvas.getBoundingClientRect();
+            const dist = touchDist(e.touches[0], e.touches[1]);
+            const mid = touchMid(e.touches[0], e.touches[1]);
+            this.scale = Math.min(4, Math.max(0.25, pinch.startScale * (dist / pinch.startDist)));
+            const screenMid = { x: mid.x - rect.left, y: mid.y - rect.top };
+            const after = this.worldToScreen(pinch.worldMid.x, pinch.worldMid.y);
+            this.offsetX += screenMid.x - after.x;
+            this.offsetY += screenMid.y - after.y;
+            this.scheduleDraw();
+          } else if (touchStart && e.touches.length === 1) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - touchStart.x;
+            const dy = e.touches[0].clientY - touchStart.y;
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) touchStart.moved = true;
+            this.offsetX += dx;
+            this.offsetY += dy;
+            touchStart.x = e.touches[0].clientX;
+            touchStart.y = e.touches[0].clientY;
+            this.scheduleDraw();
+          }
+        },
+        { passive: false }
+      );
       this.canvas.addEventListener("touchend", (e) => {
-        if (touchStart && !touchStart.moved) {
-          const rect = this.canvas.getBoundingClientRect();
-          const mx = touchStart.x - rect.left;
-          const my = touchStart.y - rect.top;
-          const hit = this.pixelToHex(mx, my);
-          this.selected = hit;
-          this.scheduleDraw();
-          if (this.opts.onSelect) this.opts.onSelect(hit);
+        if (e.touches.length === 0) {
+          pinch = null;
+          if (touchStart && !touchStart.moved) {
+            const rect = this.canvas.getBoundingClientRect();
+            const mx = touchStart.x - rect.left;
+            const my = touchStart.y - rect.top;
+            const hit = this.pixelToHex(mx, my);
+            this.selected = hit;
+            this.scheduleDraw();
+            if (this.opts.onSelect) this.opts.onSelect(hit);
+          }
+          touchStart = null;
+        } else if (e.touches.length === 1) {
+          // Lifted one of two fingers — resume single-finger panning from
+          // here rather than treating this moment as a tap.
+          pinch = null;
+          touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: true };
         }
-        touchStart = null;
       });
     }
 
