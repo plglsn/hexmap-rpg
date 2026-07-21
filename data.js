@@ -11,11 +11,11 @@ const HEX_DATA = {
   "unknown": "#726e7d",
   "desert": "#e0c068",
   "arctic": "#e8f0f2",
-  "swamp": "#6b7a4f",
+  "swamp": "#b19cd9",
   "grassland": "#c9d97a",
   "forest": "#4f7942",
   "jungle": "#2f7a4f",
-  "river": "#5aa9d6",
+  "lake": "#5aa9d6",
   "coast": "#8fd0d8",
   "ocean": "#3a6ea8",
   "mountain": "#8b8680"
@@ -1348,7 +1348,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "7,47": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "Hermit's Island",
    "notes": "",
    "rumours": "",
@@ -1356,7 +1356,7 @@ const HEX_DATA = {
    "poi": "Landmark"
   },
   "7,48": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
@@ -1549,7 +1549,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "8,49": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
@@ -1736,7 +1736,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "9,48": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
@@ -1926,7 +1926,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "10,48": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
@@ -2109,7 +2109,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "11,47": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
@@ -2289,7 +2289,7 @@ const HEX_DATA = {
    "poi": ""
   },
   "12,47": {
-   "terrain": "river",
+   "terrain": "lake",
    "name": "",
    "notes": "",
    "rumours": "",
