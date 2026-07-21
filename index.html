@@ -159,6 +159,23 @@
     respectFog: true,
   });
 
+  // Open centered on the explored area instead of the middle of the full
+  // grid — with most of the map unrevealed, there's nothing useful at the
+  // default view, and players shouldn't have to hunt for where they've
+  // actually been.
+  (function centerOnExploredArea() {
+    let sumCol = 0, sumRow = 0, count = 0;
+    Object.keys(data.hexes).forEach((key) => {
+      if (!data.hexes[key].revealed) return;
+      const [col, row] = key.split(",").map(Number);
+      sumCol += col;
+      sumRow += row;
+      count++;
+    });
+    if (count === 0) return; // nothing revealed yet — leave the default view
+    map.centerOn(Math.round(sumCol / count), Math.round(sumRow / count));
+  })();
+
   // ---- directory panel: browse all discovered NPCs / events / locations ----
 
   const entitiesModalBackdrop = document.getElementById("entities-modal-backdrop");
