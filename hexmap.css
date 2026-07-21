@@ -425,7 +425,8 @@ html, body {
 }
 
 /* Entities directory modal */
-#entities-modal-backdrop {
+#entities-modal-backdrop,
+#rivers-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
@@ -437,11 +438,13 @@ html, body {
   overflow-y: auto;
 }
 
-#entities-modal-backdrop.visible {
+#entities-modal-backdrop.visible,
+#rivers-modal-backdrop.visible {
   display: flex;
 }
 
-#entities-modal {
+#entities-modal,
+#rivers-modal {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -452,7 +455,8 @@ html, body {
   overflow-y: auto;
 }
 
-#entities-modal h2 {
+#entities-modal h2,
+#rivers-modal h2 {
   margin: 0 0 12px;
   font-size: 16px;
   display: flex;
@@ -460,11 +464,13 @@ html, body {
   justify-content: space-between;
 }
 
-#entities-modal h2 button {
+#entities-modal h2 button,
+#rivers-modal h2 button {
   font-size: 12px;
 }
 
-#entities-modal input[type="text"] {
+#entities-modal input[type="text"],
+#rivers-modal input[type="text"] {
   width: 100%;
   margin-bottom: 10px;
 }

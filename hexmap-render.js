@@ -38,7 +38,7 @@
     swamp: "☵", // broken bars (trigram for water) — murky wetland
     forest: "♣", // club — tree canopy
     jungle: "♧", // white club — denser canopy
-    river: "∿", // sine wave — flowing water
+    lake: "∿", // sine wave — still water
     coast: "≈", // double wave
     ocean: "≋", // triple wave — open water
     mountain: "▲", // triangle — peak
@@ -80,6 +80,16 @@
     return { q: rq, r: rr };
   }
 
+  // Neighbor direction table for "odd-q" offset coordinates (flat-top
+  // hexes, odd columns shoved down) — matches the y-shift in hexCenter()
+  // below. Used to constrain river-drawing to hex-to-hex adjacency.
+  const ODDQ_DIRS = [
+    // even columns
+    [[+1, 0], [+1, -1], [0, -1], [-1, -1], [-1, 0], [0, +1]],
+    // odd columns
+    [[+1, +1], [+1, 0], [0, -1], [-1, 0], [-1, +1], [0, +1]],
+  ];
+
   class HexMap {
     constructor(canvas, data, opts) {
       this.canvas = canvas;
@@ -96,6 +106,11 @@
       this.entities = data.entities || {};
       this._entityIndex = null; // hexKey -> [entityId, ...]
       this._entityIndexDirty = true;
+
+      // Rivers — a named path of adjacent hex keys, drawn as a line across
+      // the hexes it crosses (independent of each hex's own terrain).
+      // { id: { name, notes, secret, path: ["col,row", ...] } }
+      this.data.rivers = this.data.rivers || {};
 
       // When set, the next canvas click moves this entity instead of
       // selecting a hex. See armPlacement()/cancelPlacement().
@@ -277,6 +292,44 @@
       this.canvas.style.cursor = "";
     }
 
+    // ---- rivers ----
+
+    listRivers() {
+      return Object.keys(this.data.rivers).map((id) => Object.assign({ id }, this.data.rivers[id]));
+    }
+
+    getRiver(id) {
+      return this.data.rivers[id];
+    }
+
+    /** Create (if id is new) or update a river. */
+    setRiver(id, fields) {
+      this.data.rivers[id] = Object.assign(
+        { name: "", notes: "", secret: "", path: [] },
+        this.data.rivers[id],
+        fields
+      );
+      this._bitmapDirty = true;
+      return this.data.rivers[id];
+    }
+
+    deleteRiver(id) {
+      delete this.data.rivers[id];
+      this._bitmapDirty = true;
+    }
+
+    /** Up to 6 in-bounds neighbors of (col,row), for odd-q offset coords. */
+    neighbors(col, row) {
+      const parity = col & 1;
+      return ODDQ_DIRS[parity]
+        .map(([dc, dr]) => ({ col: col + dc, row: row + dr }))
+        .filter((n) => n.col >= 0 && n.col < this.cols && n.row >= 0 && n.row < this.rows);
+    }
+
+    isAdjacent(colA, rowA, colB, rowB) {
+      return this.neighbors(colA, rowA).some((n) => n.col === colB && n.row === rowB);
+    }
+
     // ---- rendering ----
 
     _resize() {
@@ -352,8 +405,52 @@
         }
       }
 
+      this._paintRivers(bctx);
+
       bctx.restore();
       this._bitmapDirty = false;
+    }
+
+    // Rivers are drawn as straight hex-center-to-hex-center segments on top
+    // of terrain, one river-length pass after all hex fills are painted.
+    // Each segment's visibility is decided independently by its two
+    // endpoint hexes' revealed state — a river crossing from explored into
+    // unexplored territory just fades out at the boundary instead of
+    // leaking the unexplored portion's shape.
+    _paintRivers(ctx) {
+      const rivers = this.data.rivers || {};
+      Object.keys(rivers).forEach((id) => {
+        const path = rivers[id].path || [];
+        for (let i = 0; i < path.length - 1; i++) {
+          const a = this._keyToColRow(path[i]);
+          const b = this._keyToColRow(path[i + 1]);
+          if (!a || !b) continue;
+          const hexA = this.getHex(a.col, a.row);
+          const hexB = this.getHex(b.col, b.row);
+          if (!hexA || !hexB) continue;
+          const revealedA = hexA.revealed !== false;
+          const revealedB = hexB.revealed !== false;
+          if (this.opts.respectFog && (!revealedA || !revealedB)) continue;
+
+          const centerA = this.hexCenter(a.col, a.row);
+          const centerB = this.hexCenter(b.col, b.row);
+
+          ctx.save();
+          if (!this.opts.respectFog && (!revealedA || !revealedB)) {
+            // GM-only: fainter + dashed to flag it crosses fogged ground.
+            ctx.globalAlpha = 0.5;
+            ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
+          }
+          ctx.strokeStyle = "#4fa3d1";
+          ctx.lineWidth = Math.max(1.5, this.size * 0.16);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(centerA.x, centerA.y);
+          ctx.lineTo(centerB.x, centerB.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+      });
     }
 
     _paintHex(ctx, col, row) {
