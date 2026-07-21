@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hexcrawl Map</title>
+<link rel="stylesheet" href="hexmap.css" />
+</head>
+<body>
+<div id="app">
+  <div id="map-wrap">
+    <canvas id="map-canvas"></canvas>
+
+    <div id="toolbar">
+      <h1>Hexcrawl</h1>
+      <input type="text" id="jump-input" placeholder="col,row e.g. 12,8" />
+      <button id="jump-btn">Go</button>
+      <button id="entities-panel-btn">NPCs &amp; Locations</button>
+    </div>
+
+    <div id="legend"></div>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-content">
+      <p class="placeholder">Click a hex to view it.<br><br>Scroll to zoom, drag to pan.</p>
+    </div>
+  </div>
+</div>
+
+<div id="entities-modal-backdrop">
+  <div id="entities-modal">
+    <h2>NPCs, Events &amp; Locations <button id="entities-modal-close">Close</button></h2>
+    <input type="text" id="entities-search" placeholder="Search by name…" />
+    <div id="entities-modal-list"></div>
+  </div>
+</div>
+
+<script src="hexmap-render.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  const data = HEX_DATA;
+  const canvas = document.getElementById("map-canvas");
+  const sidebar = document.getElementById("sidebar-content");
+  const legend = document.getElementById("legend");
+  const TERRAINS = Object.keys(data.terrainColors);
+
+  function buildLegend() {
+    legend.innerHTML = "";
+    TERRAINS.forEach((t) => {
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      const icon = HexMap.TERRAIN_ICONS[t] || "";
+      item.innerHTML = `<span class="legend-swatch" style="background:${data.terrainColors[t]}">${icon}</span>${t}`;
+      legend.appendChild(item);
+    });
+    const fog = document.createElement("div");
+    fog.className = "legend-item";
+    fog.innerHTML = `<span class="legend-swatch" style="background:#1c2128"></span>unexplored`;
+    legend.appendChild(fog);
+    const rumour = document.createElement("div");
+    rumour.className = "legend-item";
+    rumour.innerHTML = `<span class="legend-swatch" style="background:#e2c94a">?</span>rumour to read`;
+    legend.appendChild(rumour);
+  }
+  buildLegend();
+
+  function renderSidebar(hit) {
+    if (!hit) {
+      sidebar.innerHTML = '<p class="placeholder">Click a hex to view it.<br><br>Scroll to zoom, drag to pan.</p>';
+      return;
+    }
+    const { col, row } = hit;
+    const hex = map.getHex(col, row) || { revealed: false };
+
+    if (hex.revealed === false) {
+      sidebar.innerHTML = `
+        <h2>Unexplored</h2>
+        <div class="coord">Column ${col} · Row ${row}</div>
+        ${
+          hex.rumours
+            ? `<label class="rumours-label">What you've heard</label>
+               <div class="field-readonly rumours-block">${escapeHtml(hex.rumours)}</div>`
+            : '<p class="placeholder">Your party hasn\'t discovered this hex yet.</p>'
+        }
+      `;
+      return;
+    }
+
+    // Most hexes have no name — they're just terrain. A name only earns
+    // top billing once the hex has a point of interest; otherwise fall
+    // back to the terrain itself as the heading.
+    const title = hex.name || hex.poi || capitalize(hex.terrain);
+    const hasPopulation = hex.population !== undefined && hex.population !== null;
+
+    sidebar.innerHTML = `
+      <h2>${escapeHtml(title)}</h2>
+      <div class="coord">
+        Column ${col} · Row ${row} · ${escapeHtml(hex.terrain)}
+        ${hex.poi ? `<span class="entity-badge entity-badge-location" style="margin-left:6px;">${HexMap.POI_ICONS[hex.poi] || ""} ${escapeHtml(hex.poi)}</span>` : ""}
+      </div>
+      ${
+        hasPopulation
+          ? `<div class="coord">${hex.population === 0 ? "Uninhabited" : "Population: " + hex.population.toLocaleString()}</div>`
+          : ""
+      }
+
+      ${
+        hex.rumours
+          ? `<label class="rumours-label">What you'd heard, before exploring</label>
+             <div class="field-readonly rumours-block">${escapeHtml(hex.rumours)}</div>`
+          : ""
+      }
+
+      <label>Notes</label>
+      <div class="field-readonly">${hex.notes ? escapeHtml(hex.notes) : '<span class="empty-hint">Nothing recorded here.</span>'}</div>
+
+      ${renderEntitiesSection(col, row)}
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+  function capitalize(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
+  // ---- NPCs / events / locations (read-only) ----
+
+  const ENTITY_TYPE_LABELS = { npc: "NPC", event: "Event", location: "Location" };
+
+  function entityCardHtml(e) {
+    return `
+      <div class="entity-card">
+        <div class="entity-card-row" style="align-items:center;">
+          <span class="entity-badge entity-badge-${e.type}">${HexMap.ENTITY_STYLES[e.type].label} ${ENTITY_TYPE_LABELS[e.type] || e.type}</span>
+          <strong>${escapeHtml(e.name || "(unnamed)")}</strong>
+        </div>
+        <div class="field-readonly">${e.notes ? escapeHtml(e.notes) : '<span class="empty-hint">Nothing recorded here.</span>'}</div>
+      </div>
+    `;
+  }
+
+  function renderEntitiesSection(col, row) {
+    const list = map.entitiesAt(col, row);
+    if (!list.length) return "";
+    return `
+      <div class="entity-section">
+        <label>Here now</label>
+        ${list.map(entityCardHtml).join("")}
+      </div>
+    `;
+  }
+
+  const map = new HexMap(canvas, data, {
+    onSelect: renderSidebar,
+    respectFog: true,
+  });
+
+  // ---- directory panel: browse all discovered NPCs / events / locations ----
+
+  const entitiesModalBackdrop = document.getElementById("entities-modal-backdrop");
+  const entitiesModalList = document.getElementById("entities-modal-list");
+  const entitiesSearch = document.getElementById("entities-search");
+
+  function renderEntitiesModalList() {
+    const query = entitiesSearch.value.trim().toLowerCase();
+    const all = map.listEntities().filter((e) => !query || (e.name || "").toLowerCase().includes(query));
+    if (!all.length) {
+      entitiesModalList.innerHTML = '<p class="empty-hint">Nothing discovered yet.</p>';
+      return;
+    }
+    const grouped = { npc: [], event: [], location: [] };
+    all.forEach((e) => grouped[e.type] && grouped[e.type].push(e));
+
+    let html = "";
+    Object.keys(ENTITY_TYPE_LABELS).forEach((type) => {
+      if (!grouped[type].length) return;
+      const typeIcon = HexMap.ENTITY_STYLES[type].label;
+      html += `<label style="margin-top:16px;">${typeIcon} ${ENTITY_TYPE_LABELS[type]}s</label>`;
+      grouped[type].forEach((e) => {
+        html += `
+          <div class="entity-list-row" data-hex="${e.hex}">
+            <span class="entity-badge entity-badge-${e.type}">${typeIcon} ${ENTITY_TYPE_LABELS[e.type]}</span>
+            <span class="entity-list-name">${escapeHtml(e.name || "(unnamed)")}</span>
+            <span class="entity-list-hex">${e.hex}</span>
+          </div>
+        `;
+      });
+    });
+    entitiesModalList.innerHTML = html;
+
+    entitiesModalList.querySelectorAll(".entity-list-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const [col, rowNum] = row.dataset.hex.split(",").map(Number);
+        closeEntitiesModal();
+        map.selectHex(col, rowNum);
+      });
+    });
+  }
+
+  function openEntitiesModal() {
+    entitiesSearch.value = "";
+    renderEntitiesModalList();
+    entitiesModalBackdrop.classList.add("visible");
+  }
+  function closeEntitiesModal() {
+    entitiesModalBackdrop.classList.remove("visible");
+  }
+  document.getElementById("entities-panel-btn").addEventListener("click", openEntitiesModal);
+  document.getElementById("entities-modal-close").addEventListener("click", closeEntitiesModal);
+  entitiesModalBackdrop.addEventListener("click", (e) => {
+    if (e.target === entitiesModalBackdrop) closeEntitiesModal();
+  });
+  entitiesSearch.addEventListener("input", renderEntitiesModalList);
+
+  document.getElementById("jump-btn").addEventListener("click", jump);
+  document.getElementById("jump-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") jump();
+  });
+  function jump() {
+    const raw = document.getElementById("jump-input").value.trim();
+    const m = raw.match(/^(\d+)\s*,\s*(\d+)$/);
+    if (!m) return;
+    const col = parseInt(m[1], 10);
+    const row = parseInt(m[2], 10);
+    if (col >= 0 && col < data.meta.cols && row >= 0 && row < data.meta.rows) {
+      map.selectHex(col, row);
+    }
+  }
+})();
+</script>
+</body>
+</html>
