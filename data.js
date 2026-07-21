@@ -11,11 +11,11 @@ const HEX_DATA = {
   "unknown": "#726e7d",
   "desert": "#e0c068",
   "arctic": "#e8f0f2",
-  "swamp": "#b19cd9",
+  "swamp": "#6b7a4f",
   "grassland": "#c9d97a",
   "forest": "#4f7942",
   "jungle": "#2f7a4f",
-  "lake": "#5aa9d6",
+  "river": "#5aa9d6",
   "coast": "#8fd0d8",
   "ocean": "#3a6ea8",
   "mountain": "#8b8680"
@@ -604,16 +604,36 @@ const HEX_DATA = {
    "revealed": false
   },
   "3,44": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "3,45": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "3,46": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "3,47": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "3,48": {
    "revealed": false
@@ -757,19 +777,44 @@ const HEX_DATA = {
    "revealed": false
   },
   "4,45": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "4,46": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "4,47": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "4,48": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "4,49": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "5,0": {
    "revealed": false
@@ -904,22 +949,52 @@ const HEX_DATA = {
    "revealed": false
   },
   "5,44": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "5,45": {
-   "revealed": false
+   "terrain": "mountain",
+   "name": "Darlan Keep",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "Fortress"
   },
   "5,46": {
-   "revealed": false
+   "terrain": "swamp",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "5,47": {
-   "revealed": false
+   "terrain": "swamp",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "5,48": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "5,49": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,0": {
    "revealed": false
@@ -1051,25 +1126,60 @@ const HEX_DATA = {
    "revealed": false
   },
   "6,43": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,44": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,45": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,46": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "Hotsprings",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "Settlement"
   },
   "6,47": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,48": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "6,49": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,0": {
    "revealed": false
@@ -1198,25 +1308,60 @@ const HEX_DATA = {
    "revealed": false
   },
   "7,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,43": {
-   "revealed": false
+   "terrain": "coast",
+   "name": "Giant Monster Nest",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "Landmark"
   },
   "7,44": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,45": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,46": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,47": {
-   "revealed": false
+   "terrain": "river",
+   "name": "Hermit's Island",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "Landmark"
   },
   "7,48": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "7,49": {
    "revealed": false
@@ -1348,28 +1493,68 @@ const HEX_DATA = {
    "revealed": false
   },
   "8,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,43": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,44": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,45": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,46": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,47": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,48": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "8,49": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,0": {
    "revealed": false
@@ -1495,28 +1680,68 @@ const HEX_DATA = {
    "revealed": false
   },
   "9,41": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,42": {
-   "revealed": false
+   "terrain": "coast",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,43": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,44": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,45": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,46": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,47": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,48": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "9,49": {
    "revealed": false
@@ -1645,28 +1870,68 @@ const HEX_DATA = {
    "revealed": false
   },
   "10,41": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,42": {
-   "revealed": false
+   "terrain": "coast",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,43": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,44": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,45": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,46": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,47": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,48": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "10,49": {
    "revealed": false
@@ -1795,25 +2060,60 @@ const HEX_DATA = {
    "revealed": false
   },
   "11,41": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,42": {
-   "revealed": false
+   "terrain": "coast",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,43": {
-   "revealed": false
+   "terrain": "mountain",
+   "name": "Caverns of Kowse",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "Dungeon"
   },
   "11,44": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,45": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,46": {
-   "revealed": false
+   "terrain": "grassland",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,47": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "11,48": {
    "revealed": false
@@ -1948,22 +2248,52 @@ const HEX_DATA = {
    "revealed": false
   },
   "12,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,43": {
-   "revealed": false
+   "terrain": "coast",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,44": {
-   "revealed": false
+   "terrain": "mountain",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,45": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,46": {
-   "revealed": false
+   "terrain": "forest",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,47": {
-   "revealed": false
+   "terrain": "river",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "12,48": {
    "revealed": false
@@ -2098,10 +2428,20 @@ const HEX_DATA = {
    "revealed": false
   },
   "13,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "13,43": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": ""
   },
   "13,44": {
    "revealed": false
