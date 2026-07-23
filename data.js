@@ -445,19 +445,33 @@ const HEX_DATA = {
    "revealed": false
   },
   "2,41": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "2,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "2,43": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "2,44": {
    "revealed": false
   },
   "2,45": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "2,46": {
    "revealed": false
@@ -592,19 +606,38 @@ const HEX_DATA = {
    "revealed": false
   },
   "3,40": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "3,41": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "3,42": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "3,43": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "3,44": {
-   "terrain": "desert",
+   "terrain": "swamp",
    "name": "Swamp Dragon",
    "notes": "",
    "rumours": "",
@@ -763,19 +796,29 @@ const HEX_DATA = {
    "revealed": false
   },
   "4,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "4,41": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "4,42": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "4,43": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "4,44": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "4,45": {
    "terrain": "desert",
@@ -935,19 +978,29 @@ const HEX_DATA = {
    "revealed": false
   },
   "5,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "5,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "5,41": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "5,42": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "5,43": {
-   "revealed": false
+   "terrain": "ocean",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "5,44": {
    "terrain": "desert",
@@ -1115,16 +1168,20 @@ const HEX_DATA = {
    "revealed": false
   },
   "6,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "6,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "6,41": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "6,42": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "6,43": {
    "terrain": "ocean",
@@ -1298,16 +1355,20 @@ const HEX_DATA = {
    "revealed": false
   },
   "7,38": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "7,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "7,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "7,41": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "7,42": {
    "terrain": "ocean",
@@ -1319,8 +1380,8 @@ const HEX_DATA = {
   },
   "7,43": {
    "terrain": "coast",
-   "name": "Giant Monster Nest",
-   "notes": "",
+   "name": "Giant Monster Nest on Beach",
+   "notes": "Wizard reported it was from a local Kraken",
    "rumours": "",
    "revealed": true,
    "poi": "Landmark",
@@ -1488,13 +1549,16 @@ const HEX_DATA = {
    "revealed": false
   },
   "8,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "8,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "8,41": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "8,42": {
    "terrain": "ocean",
@@ -1679,10 +1743,12 @@ const HEX_DATA = {
    "revealed": false
   },
   "9,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "9,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "9,41": {
    "terrain": "ocean",
@@ -1690,7 +1756,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "",
+   "locationTier": "major"
   },
   "9,42": {
    "terrain": "coast",
@@ -1870,7 +1937,8 @@ const HEX_DATA = {
    "revealed": false
   },
   "10,39": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "10,40": {
    "revealed": false
@@ -1881,7 +1949,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "",
+   "locationTier": "major"
   },
   "10,42": {
    "terrain": "coast",
@@ -1889,7 +1958,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "",
+   "locationTier": "major"
   },
   "10,43": {
    "terrain": "desert",
@@ -2057,11 +2127,18 @@ const HEX_DATA = {
    "revealed": false
   },
   "11,38": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "11,39": {
    "rumours": "Pirate Ship moored here",
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "11,40": {
    "revealed": false
@@ -2072,7 +2149,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": ""
+   "poi": "",
+   "locationTier": "major"
   },
   "11,42": {
    "terrain": "coast",
@@ -2247,10 +2325,17 @@ const HEX_DATA = {
    "revealed": false
   },
   "12,39": {
-   "revealed": false
+   "terrain": "desert",
+   "name": "",
+   "notes": "",
+   "rumours": "",
+   "revealed": true,
+   "poi": "",
+   "locationTier": "major"
   },
   "12,40": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "12,41": {
    "revealed": false
