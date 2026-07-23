@@ -7893,7 +7893,7 @@ const HEX_DATA = {
  ],
  "rivers": {
   "river_mruv4pvpo4kv": {
-   "name": "",
+   "name": "River Korze",
    "notes": "",
    "path": [
     "11,44",
@@ -7905,7 +7905,9 @@ const HEX_DATA = {
     "5,47",
     "4,47",
     "3,46"
-   ]
+   ],
+   "edgeClipStart": true,
+   "edgeClipEnd": true
   }
  }
 };
