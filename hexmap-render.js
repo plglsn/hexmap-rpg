@@ -893,21 +893,17 @@
             );
           }
 
-          // A "major" location's name is meant to be a landmark you can
-          // always read at a glance, so it shows regardless of zoom level.
-          // A "minor" location's name would otherwise clutter the map with
-          // every little village at once, so it only appears once you've
-          // actually selected or hovered that hex.
-          // A "major" location is meant to be a landmark you recognize by
-          // its (visually distinct) icon alone — see _paintHex — so its
-          // name never renders as text on the map itself, only in the
-          // sidebar once you click it. A "minor" location has no special
-          // icon, so its name still needs to show up somewhere: only when
-          // you've actually selected or hovered that hex, so it doesn't
-          // clutter the map at a glance.
+          // A location's name (major or minor alike) only ever shows as
+          // map text once you've actually selected or hovered that hex —
+          // otherwise every named hex in view would clutter the map at
+          // once. That part is the same for both tiers. What differs is
+          // the passive, un-selected state: a "major" location also gets a
+          // visually distinct icon (see _paintHex) so it reads as a
+          // landmark at a glance without being clicked, while a "minor"
+          // location's icon is the plain marker and its name is only ever
+          // available by selecting/hovering it.
           const highlighted = isSelected || isHover;
-          const isMinor = hex.locationTier === "minor";
-          const showName = hex.poi && !hideFromViewer && isMinor && highlighted;
+          const showName = hex.poi && !hideFromViewer && highlighted;
           const showPopulation = showLabels && !hideFromViewer && hex.population !== undefined && hex.population !== null;
 
           if (showName || showPopulation) {
