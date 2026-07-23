@@ -21,6 +21,11 @@
 
   const SQRT3 = Math.sqrt(3);
 
+  // Sand fill for the land-facing side of a coast hex's shoreline (see
+  // _paintCoastHex) — a rendering constant rather than a configurable
+  // terrainColors entry, same as the river's blue elsewhere in this file.
+  const BEACH_COLOR = "#e8d9a8";
+
   const ENTITY_STYLES = {
     npc: { color: "#4a90e2", label: "♟" }, // chess pawn — a character/agent
     event: { color: "#e2794a", label: "‼" }, // double exclamation — something's happening
@@ -676,6 +681,166 @@
       });
     }
 
+    // Every other hex sharing the same physical point as corner `cornerIndex`
+    // of (col,row) — up to 2 of them in the interior of the grid, fewer at
+    // the map's edge. Found geometrically (by matching corner coordinates)
+    // rather than by reasoning about direction indices, so it's correct
+    // regardless of how corner/neighbor ordering happens to line up.
+    _hexesAtCorner(col, row, cornerIndex) {
+      const center = this.hexCenter(col, row);
+      const target = this.hexCorners(center.x, center.y)[cornerIndex];
+      const eps = this.size * 0.01;
+      const found = [];
+      this.neighbors(col, row).forEach((n) => {
+        const nCenter = this.hexCenter(n.col, n.row);
+        const match = this.hexCorners(nCenter.x, nCenter.y).some(
+          (p) => Math.abs(p.x - target.x) < eps && Math.abs(p.y - target.y) < eps
+        );
+        if (match) found.push(n);
+      });
+      return found;
+    }
+
+    // A corner "borders water" if any hex meeting at that exact physical
+    // point (this hex's own neighbors that share the vertex) is ocean or
+    // lake. Because this only depends on the vertex's location and the
+    // terrain of the hexes touching it — never on which hex is asking —
+    // two coast hexes that share a corner always agree on its
+    // classification, which is what lets their shorelines meet exactly
+    // without any extra coordination.
+    _isWaterCorner(col, row, cornerIndex) {
+      return this._hexesAtCorner(col, row, cornerIndex).some((n) => {
+        const nHex = this.getHex(n.col, n.row);
+        return nHex && (nHex.terrain === "ocean" || nHex.terrain === "lake");
+      });
+    }
+
+    // Longest run of `true` in a cyclic boolean array (wrap-around allowed),
+    // as { start, len }. Returns null if none are true.
+    _largestCyclicArc(bools) {
+      const n = bools.length;
+      if (!bools.some(Boolean)) return null;
+      if (bools.every(Boolean)) return { start: 0, len: n };
+      const scanFrom = bools.indexOf(false);
+      let best = null,
+        curStart = null,
+        curLen = 0;
+      for (let step = 0; step < n; step++) {
+        const idx = (scanFrom + step) % n;
+        if (bools[idx]) {
+          if (curStart === null) curStart = idx;
+          curLen++;
+          if (!best || curLen > best.len) best = { start: curStart, len: curLen };
+        } else {
+          curStart = null;
+          curLen = 0;
+        }
+      }
+      return best;
+    }
+
+    // A coast hex gets a two-tone fill — beach on the land-facing side,
+    // water on the water-facing side — split by a smooth curve, instead of
+    // the flat single-color fill every other terrain gets. The curve's two
+    // endpoints are the hex's own corners that border open water in a
+    // neighboring tile (see _isWaterCorner); everything between them,
+    // going around whichever way stays on water corners, is water — the
+    // rest of the hex is beach. Since neighboring coast hexes classify a
+    // shared corner identically, their curves always meet at the same
+    // point, so the waterline reads as one continuous shoreline across the
+    // whole coastal band instead of looking stitched together hex by hex.
+    _paintCoastHex(ctx, col, row, center, corners) {
+      const waterCorner = [];
+      let waterTerrainSeen = null;
+      for (let i = 0; i < 6; i++) {
+        const hexesHere = this._hexesAtCorner(col, row, i);
+        const waterHex = hexesHere.find((n) => {
+          const nHex = this.getHex(n.col, n.row);
+          return nHex && (nHex.terrain === "ocean" || nHex.terrain === "lake");
+        });
+        waterCorner.push(!!waterHex);
+        if (waterHex && !waterTerrainSeen) waterTerrainSeen = this.getHex(waterHex.col, waterHex.row).terrain;
+      }
+
+      const waterColor = this.terrainColors[waterTerrainSeen] || this.terrainColors.coast || "#5aa9d6";
+      const arc = this._largestCyclicArc(waterCorner);
+
+      // No neighboring water at all, or water on every side (an all-water
+      // "coast" hex, e.g. mid-strait) — just a flat fill, no curve needed.
+      if (!arc) {
+        ctx.fillStyle = BEACH_COLOR;
+        ctx.fill();
+        return;
+      }
+      if (arc.len === 6) {
+        ctx.fillStyle = waterColor;
+        ctx.fill();
+        return;
+      }
+
+      ctx.fillStyle = BEACH_COLOR;
+      ctx.fill();
+
+      const startIdx = arc.start;
+      const endIdx = (arc.start + arc.len - 1) % 6;
+      const A = corners[startIdx];
+      const B = corners[endIdx];
+
+      ctx.save();
+      ctx.beginPath();
+      if (arc.len === 1) {
+        // A single water corner has no second boundary corner to curve
+        // toward — carve a small water notch out of that one corner
+        // instead, bounded by the midpoints of its two adjacent edges.
+        const prev = corners[(startIdx + 5) % 6];
+        const next = corners[(startIdx + 1) % 6];
+        const midPrev = { x: (A.x + prev.x) / 2, y: (A.y + prev.y) / 2 };
+        const midNext = { x: (A.x + next.x) / 2, y: (A.y + next.y) / 2 };
+        const ctrl = {
+          x: (midPrev.x + midNext.x) / 2 + (center.x - (midPrev.x + midNext.x) / 2) * 0.5,
+          y: (midPrev.y + midNext.y) / 2 + (center.y - (midPrev.y + midNext.y) / 2) * 0.5,
+        };
+        ctx.moveTo(midPrev.x, midPrev.y);
+        ctx.lineTo(A.x, A.y);
+        ctx.lineTo(midNext.x, midNext.y);
+        ctx.quadraticCurveTo(ctrl.x, ctrl.y, midPrev.x, midPrev.y);
+      } else {
+        // Real hex boundary through any water corners between the two
+        // ends of the arc — those edges genuinely border more water tiles,
+        // so there's nothing to smooth over there.
+        ctx.moveTo(A.x, A.y);
+        for (let step = 1; step < arc.len; step++) {
+          const idx = (startIdx + step) % 6;
+          ctx.lineTo(corners[idx].x, corners[idx].y);
+        }
+        // Smooth curve back from B to A, cutting through the interior —
+        // this is the actual "invented" shoreline, so it's the one part
+        // that gets bulged toward the hex center rather than following a
+        // straight edge.
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        const ctrl = { x: mid.x * 0.55 + center.x * 0.45, y: mid.y * 0.55 + center.y * 0.45 };
+        ctx.quadraticCurveTo(ctrl.x, ctrl.y, A.x, A.y);
+      }
+      ctx.closePath();
+      // Every point on this sub-path is a corner, edge-midpoint, or
+      // interior blend of the hex's own corners/center — all inside the
+      // (convex) hex — so this fill can never spill past the hex's own
+      // boundary and doesn't need an explicit clip.
+      ctx.fillStyle = waterColor;
+      ctx.fill();
+      ctx.restore();
+
+      // ctx.save()/restore() only cover drawing state, not the current
+      // path — beginPath() above replaced the hex's own outline as the
+      // active path with this water sub-path, and restore() doesn't bring
+      // it back. _paintHex still needs the actual hex outline as the
+      // active path afterward (for the fog overlay's clip and the border
+      // stroke), so it has to be rebuilt here before returning.
+      ctx.beginPath();
+      corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.closePath();
+    }
+
     _paintHex(ctx, col, row) {
       const hex = this.getHex(col, row);
       if (!hex) return;
@@ -704,8 +869,12 @@
         return;
       }
 
-      ctx.fillStyle = this.terrainColors[hex.terrain] || "#555";
-      ctx.fill();
+      if (hex.terrain === "coast") {
+        this._paintCoastHex(ctx, col, row, center, corners);
+      } else {
+        ctx.fillStyle = this.terrainColors[hex.terrain] || "#555";
+        ctx.fill();
+      }
 
       // Subtle terrain icon, tinted to blend with the fill — a second,
       // colorblind/print-friendly way to tell terrain apart beyond color.
