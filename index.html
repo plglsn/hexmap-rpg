@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Hexcrawl Map</title>
-<link rel="stylesheet" href="hexmap.css?v=676061f0" />
+<link rel="stylesheet" href="hexmap.css?v=7be32d83" />
 </head>
 <body>
 <div id="app">
@@ -16,6 +16,10 @@
       <input type="text" id="jump-input" placeholder="col,row e.g. 12,8" />
       <button id="jump-btn">Go</button>
       <button id="entities-panel-btn">NPCs &amp; Locations</button>
+      <button id="search-panel-btn">Search</button>
+      <button id="measure-btn">Measure</button>
+      <button id="export-image-btn">Export map image…</button>
+      <span id="measure-status"></span>
     </div>
 
     <div id="legend"></div>
@@ -37,8 +41,16 @@
   </div>
 </div>
 
-<script src="hexmap-render.js?v=92eb2e8c"></script>
-<script src="data.js?v=25c7fb28"></script>
+<div id="search-modal-backdrop">
+  <div id="search-modal">
+    <h2>Search <button id="search-modal-close">Close</button></h2>
+    <input type="text" id="search-input" placeholder="Search names, POIs, notes, rumours…" />
+    <div id="search-modal-list"></div>
+  </div>
+</div>
+
+<script src="hexmap-render.js?v=cabccb2b"></script>
+<script src="data.js?v=ef3daf96"></script>
 <script>
 (function () {
   const data = HEX_DATA;
@@ -165,8 +177,47 @@
     `;
   }
 
+  // "Measure" mode: click a hex to set a starting point, then click a
+  // second hex to see the hex-step distance between them — handy for
+  // estimating travel time without counting hexes by hand. Intercepts
+  // ordinary hex clicks (which would otherwise just open the sidebar)
+  // while active; Cancel/clicking the button again turns it off.
+  let measureMode = false;
+  let measureAnchor = null;
+  const measureBtn = document.getElementById("measure-btn");
+  const measureStatus = document.getElementById("measure-status");
+
+  function setMeasureMode(on) {
+    measureMode = on;
+    measureAnchor = null;
+    measureBtn.textContent = on ? "Cancel measuring" : "Measure";
+    measureStatus.textContent = on ? "Click a hex to start, then another to measure the distance between them." : "";
+  }
+
+  function handleMeasureClick(hit) {
+    if (!hit) return;
+    if (!measureAnchor) {
+      measureAnchor = hit;
+      measureStatus.textContent = `Measuring from ${hit.col},${hit.row} — click another hex…`;
+    } else {
+      const dist = map.hexDistance(measureAnchor.col, measureAnchor.row, hit.col, hit.row);
+      measureStatus.textContent = `${measureAnchor.col},${measureAnchor.row} → ${hit.col},${hit.row}: ${dist} hex${dist === 1 ? "" : "es"}. Click a hex to start a new measurement.`;
+      measureAnchor = null;
+    }
+  }
+
+  function handleMapClick(hit) {
+    if (measureMode) {
+      handleMeasureClick(hit);
+      return;
+    }
+    renderSidebar(hit);
+  }
+
+  measureBtn.addEventListener("click", () => setMeasureMode(!measureMode));
+
   const map = new HexMap(canvas, data, {
-    onSelect: renderSidebar,
+    onSelect: handleMapClick,
     respectFog: true,
   });
 
@@ -243,6 +294,100 @@
     if (e.target === entitiesModalBackdrop) closeEntitiesModal();
   });
   entitiesSearch.addEventListener("input", renderEntitiesModalList);
+
+  // ---- search across discovered hex content ----
+  // Only matches what's actually shipped to the public build: name, POI
+  // type, and notes on revealed hexes, plus rumours (which are visible on
+  // any hex, revealed or not — see build.py). Nothing secret or
+  // undiscovered can ever show up here, since it was never sent to this
+  // build in the first place.
+
+  const searchModalBackdrop = document.getElementById("search-modal-backdrop");
+  const searchModalList = document.getElementById("search-modal-list");
+  const searchInput = document.getElementById("search-input");
+
+  function hexSearchHaystack(hex) {
+    return [hex.name, hex.poi, hex.notes, hex.rumours].filter(Boolean).join(" \n ").toLowerCase();
+  }
+
+  function renderSearchModalList() {
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query) {
+      searchModalList.innerHTML = '<p class="empty-hint">Type to search names, POIs, notes, and rumours.</p>';
+      return;
+    }
+    const results = Object.keys(data.hexes)
+      .map((key) => ({ key, hex: data.hexes[key] }))
+      .filter(({ hex }) => hexSearchHaystack(hex).includes(query))
+      .sort((a, b) => (a.hex.name || "").localeCompare(b.hex.name || ""));
+
+    if (!results.length) {
+      searchModalList.innerHTML = '<p class="empty-hint">Nothing discovered yet matches that search.</p>';
+      return;
+    }
+    searchModalList.innerHTML = results
+      .map(({ key, hex }) => {
+        const title = hex.revealed ? hex.name || hex.poi || capitalize(hex.terrain || "") : "Unexplored";
+        const icon = hex.revealed && hex.poi ? HexMap.POI_ICONS[hex.poi] || "" : "";
+        return `
+          <div class="entity-list-row" data-hex="${key}">
+            <span class="entity-list-name">${icon ? icon + " " : ""}${escapeHtml(title)}</span>
+            <span class="entity-list-hex">${key}</span>
+          </div>
+        `;
+      })
+      .join("");
+
+    searchModalList.querySelectorAll(".entity-list-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const [col, rowNum] = row.dataset.hex.split(",").map(Number);
+        closeSearchModal();
+        map.selectHex(col, rowNum);
+      });
+    });
+  }
+
+  function openSearchModal() {
+    renderSearchModalList();
+    searchModalBackdrop.classList.add("visible");
+    searchInput.focus();
+  }
+  function closeSearchModal() {
+    searchModalBackdrop.classList.remove("visible");
+  }
+  document.getElementById("search-panel-btn").addEventListener("click", openSearchModal);
+  document.getElementById("search-modal-close").addEventListener("click", closeSearchModal);
+  searchModalBackdrop.addEventListener("click", (e) => {
+    if (e.target === searchModalBackdrop) closeSearchModal();
+  });
+  searchInput.addEventListener("input", renderSearchModalList);
+
+  // Renders everything the party has discovered so far (terrain, coasts,
+  // roads, rivers, every revealed location's name/population/entity
+  // marker always shown, not just what's near the cursor) to a PNG and
+  // downloads it. Fog of war applies exactly like it does on screen —
+  // this map's respectFog is on, so unexplored hexes are skipped, same as
+  // the live view.
+  document.getElementById("export-image-btn").addEventListener("click", () => {
+    const btn = document.getElementById("export-image-btn");
+    const originalLabel = btn.textContent;
+    btn.textContent = "Rendering…";
+    btn.disabled = true;
+    setTimeout(() => {
+      const exportCanvas = map.exportImage({ maxDimension: 4000 });
+      exportCanvas.toBlob((blob) => {
+        btn.textContent = originalLabel;
+        btn.disabled = false;
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "hexcrawl-map.png";
+        a.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    }, 10);
+  });
 
   document.getElementById("jump-btn").addEventListener("click", jump);
   document.getElementById("jump-input").addEventListener("keydown", (e) => {

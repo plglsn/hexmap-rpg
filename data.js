@@ -7939,12 +7939,16 @@ const HEX_DATA = {
     "6,47",
     "5,47",
     "4,47",
-    "3,46"
+    "3,46",
+    "2,46",
+    "1,46",
+    "0,47"
    ],
    "edgeClipStart": false,
    "edgeClipEnd": true,
    "snapStartToWater": false,
    "snapEndToWater": true
   }
- }
+ },
+ "roads": {}
 };

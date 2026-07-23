@@ -117,6 +117,11 @@
       // { id: { name, notes, secret, path: ["col,row", ...] } }
       this.data.rivers = this.data.rivers || {};
 
+      // Roads — same shape and mechanics as rivers (see _paintPathNetwork)
+      // but snapping to points of interest instead of open water, and
+      // drawn as a dashed brown line instead of solid blue.
+      this.data.roads = this.data.roads || {};
+
       // When set, the next canvas click moves this entity instead of
       // selecting a hex. See armPlacement()/cancelPlacement().
       this._placement = null;
@@ -337,6 +342,41 @@
       this._bitmapDirty = true;
     }
 
+    // ---- roads ----
+
+    listRoads() {
+      return Object.keys(this.data.roads).map((id) => Object.assign({ id }, this.data.roads[id]));
+    }
+
+    getRoad(id) {
+      return this.data.roads[id];
+    }
+
+    /** Create (if id is new) or update a road. */
+    setRoad(id, fields) {
+      this.data.roads[id] = Object.assign(
+        {
+          name: "",
+          notes: "",
+          secret: "",
+          path: [],
+          edgeClipStart: true,
+          edgeClipEnd: true,
+          snapStartToPOI: true,
+          snapEndToPOI: true,
+        },
+        this.data.roads[id],
+        fields
+      );
+      this._bitmapDirty = true;
+      return this.data.roads[id];
+    }
+
+    deleteRoad(id) {
+      delete this.data.roads[id];
+      this._bitmapDirty = true;
+    }
+
     /** Up to 6 in-bounds neighbors of (col,row), for odd-q offset coords. */
     neighbors(col, row) {
       const parity = col & 1;
@@ -347,6 +387,47 @@
 
     isAdjacent(colA, rowA, colB, rowB) {
       return this.neighbors(colA, rowA).some((n) => n.col === colB && n.row === rowB);
+    }
+
+    // Hex (great-circle-equivalent) distance between two hexes — the
+    // number of hex-to-hex steps it'd take to walk from one to the other.
+    // Converts odd-q offset coordinates to cube coordinates (the inverse
+    // of axialToOddq above) since cube/axial distance has a simple closed
+    // form that offset coordinates don't.
+    hexDistance(colA, rowA, colB, rowB) {
+      const toCube = (col, row) => {
+        const x = col;
+        const z = row - (col - (col & 1)) / 2;
+        const y = -x - z;
+        return { x, y, z };
+      };
+      const a = toCube(colA, rowA);
+      const b = toCube(colB, rowB);
+      return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z));
+    }
+
+    // Every in-bounds hex within `radius` hex-steps of (col,row), including
+    // the center hex itself — a breadth-first expansion outward through
+    // neighbors() rather than a distance check over the whole grid, so it
+    // stays cheap even on a large map when the radius is small.
+    hexesInRadius(col, row, radius) {
+      const startKey = this.hexKey(col, row);
+      const visited = new Map([[startKey, { col, row }]]);
+      let frontier = [{ col, row }];
+      for (let step = 0; step < radius; step++) {
+        const next = [];
+        frontier.forEach((h) => {
+          this.neighbors(h.col, h.row).forEach((n) => {
+            const key = this.hexKey(n.col, n.row);
+            if (!visited.has(key)) {
+              visited.set(key, n);
+              next.push(n);
+            }
+          });
+        });
+        frontier = next;
+      }
+      return Array.from(visited.values());
     }
 
     // ---- rendering ----
@@ -424,51 +505,51 @@
         }
       }
 
+      // Roads first so a river crossing one draws on top of it — the
+      // thicker, solid river reads more clearly than the thin dashed road
+      // at the crossing point.
+      this._paintRoads(bctx);
       this._paintRivers(bctx);
 
       bctx.restore();
       this._bitmapDirty = false;
     }
 
-    _applyRiverStrokeStyle(ctx, faded) {
-      if (faded) {
-        // GM-only: fainter + dashed to flag it crosses fogged ground.
-        ctx.globalAlpha = 0.5;
-        ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
+    // `style` is { color, widthFactor, minWidth, dashed } — shared by
+    // rivers (solid blue) and roads (dashed brown), the two "path network"
+    // features drawn this way. Rivers and roads are landscape features
+    // that show fully regardless of fog of war (like a rumour, they're
+    // exempt) — there's no separate "faded/fogged" treatment to apply
+    // here, unlike hex terrain itself.
+    _applyPathStrokeStyle(ctx, style) {
+      if (style.dashed) {
+        ctx.setLineDash([this.size * 0.22, this.size * 0.14]);
       }
-      ctx.strokeStyle = "#4fa3d1";
-      ctx.lineWidth = Math.max(1.5, this.size * 0.16);
+      ctx.strokeStyle = style.color;
+      ctx.lineWidth = Math.max(style.minWidth, this.size * style.widthFactor);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
     }
 
     // A short straight hex-center-to-hex-center connector — used only for
-    // the stub joining a river's end to a neighboring hex it auto-connects
-    // to (open water, or another river's end). A river's own path is a
-    // smooth curve instead (see _strokeSmoothPath); this stays straight
-    // since it's always just one hop. Visibility only depends on the
-    // river's own path endpoint (keyA) being revealed — the hex it's
-    // snapping to (keyB) doesn't have to be. A river visibly continuing
-    // toward the sea it hasn't been explored yet is fine to show, much
-    // like a rumour is exempt from fog: it's just a line pointing the way,
-    // not a reveal of anything actually on that unexplored hex.
-    _paintRiverStub(ctx, keyA, keyB) {
+    // the stub joining a path's end to a neighboring hex it auto-connects
+    // to (its snap target — open water for a river, a point of interest
+    // for a road — or another path of the same kind's end). The path's own
+    // course is a smooth curve instead (see _strokeSmoothPath); this stays
+    // straight since it's always just one hop.
+    _paintPathStub(ctx, keyA, keyB, style) {
       const a = this._keyToColRow(keyA);
       const b = this._keyToColRow(keyB);
       if (!a || !b) return;
       const hexA = this.getHex(a.col, a.row);
       const hexB = this.getHex(b.col, b.row);
       if (!hexA || !hexB) return;
-      const revealedA = hexA.revealed !== false;
-      const revealedB = hexB.revealed !== false;
-      if (this.opts.respectFog && !revealedA) return;
 
       const centerA = this.hexCenter(a.col, a.row);
       const centerB = this.hexCenter(b.col, b.row);
-      const faded = !this.opts.respectFog && (!revealedA || !revealedB);
 
       ctx.save();
-      this._applyRiverStrokeStyle(ctx, faded);
+      this._applyPathStrokeStyle(ctx, style);
       ctx.beginPath();
       ctx.moveTo(centerA.x, centerA.y);
       ctx.lineTo(centerB.x, centerB.y);
@@ -478,16 +559,16 @@
 
     // Smooth curve through an ordered list of {x,y} world points, using a
     // Catmull-Rom spline (converted to cubic beziers) — passes through
-    // every point exactly, rather than the old hex-center-to-hex-center
-    // straight segments, which kinked sharply at every hex a river
-    // crossed. The two hexes just outside each end of the run (if any) are
-    // used only to shape the curve's tangent at the ends, in the standard
-    // "clamp by duplicating the endpoint" way — they aren't extra points
-    // on the line themselves.
-    _strokeSmoothPath(ctx, points, faded) {
+    // every point exactly, rather than hex-center-to-hex-center straight
+    // segments, which kink sharply at every hex a path crosses. The two
+    // hexes just outside each end of the run (if any) are used only to
+    // shape the curve's tangent at the ends, in the standard "clamp by
+    // duplicating the endpoint" way — they aren't extra points on the line
+    // themselves.
+    _strokeSmoothPath(ctx, points, style) {
       if (points.length < 2) return;
       ctx.save();
-      this._applyRiverStrokeStyle(ctx, faded);
+      this._applyPathStrokeStyle(ctx, style);
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
       if (points.length === 2) {
@@ -513,23 +594,24 @@
     }
 
     // True for a hex on the outermost ring of the grid — the only hexes a
-    // river's dangling end can sensibly be extended out to the true map
-    // edge from (see _riverEdgeExtension). An end in the interior has no
+    // path's dangling end can sensibly be extended out to the true map
+    // edge from (see _pathEdgeExtension). An end in the interior has no
     // nearby edge to reach for; stretching it out to the border regardless
     // of distance would draw a long, unrelated-looking line across
-    // territory the river never actually crosses.
+    // territory the path never actually crosses.
     _isBoundaryHex(col, row) {
       return col === 0 || col === this.cols - 1 || row === 0 || row === this.rows - 1;
     }
 
-    // Extends a river's dangling end at `boundaryPoint` out to the true
+    // Extends a path's dangling end at `boundaryPoint` out to the true
     // edge of the map, continuing in the direction it was already heading
     // (away from `awayFromPoint`, typically the next hex in from the end)
-    // — so it reads as flowing off the map rather than stopping abruptly a
-    // little short of the border. Returns null if there's no direction to
-    // extend along (a single-hex river with no map center to push away
-    // from either, degenerately) or the ray doesn't reach the boundary.
-    _riverEdgeExtension(boundaryPoint, awayFromPoint) {
+    // — so it reads as continuing off the map rather than stopping
+    // abruptly a little short of the border. Returns null if there's no
+    // direction to extend along (a single-hex path with no map center to
+    // push away from either, degenerately) or the ray doesn't reach the
+    // boundary.
+    _pathEdgeExtension(boundaryPoint, awayFromPoint) {
       const dx = boundaryPoint.x - awayFromPoint.x;
       const dy = boundaryPoint.y - awayFromPoint.y;
       const len = Math.hypot(dx, dy);
@@ -545,74 +627,60 @@
       return { x: boundaryPoint.x + dir.x * t, y: boundaryPoint.y + dir.y * t };
     }
 
-    // Hex keys this river's end at `key` already auto-connects to (open
-    // water, if `includeWater` — the GM's per-end "snap to nearby water"
-    // toggle — or another river's end, always). An end with any
+    // Hex keys this path's end at `key` already auto-connects to (its snap
+    // target, if `includeSnap` — the GM's per-end "snap to..." toggle — or
+    // another path of the same kind's end, always). An end with any
     // connections gets a stub instead of an edge extension — the two are
-    // mutually exclusive, since an end already visibly flowing into a lake
-    // has nowhere else to terminate toward. Joining another river is left
-    // out of that toggle entirely — snapping to water and joining a
-    // tributary are different things, and there's rarely a reason not to
-    // want two rivers that already meet to visibly connect.
-    _riverEndConnections(id, path, key, endpointOwners, WATER_TERRAINS, includeWater) {
+    // mutually exclusive, since an end already visibly reaching a lake (or
+    // a village, for a road) has nowhere else to terminate toward. Joining
+    // another path of the same kind is left out of that toggle entirely —
+    // snapping to the target terrain/feature and joining another path are
+    // different things, and there's rarely a reason not to want two paths
+    // that already meet to visibly connect.
+    _pathEndConnections(id, path, key, endpointOwners, isSnapTarget, includeSnap) {
       const pos = this._keyToColRow(key);
       if (!pos) return [];
       const out = [];
       this.neighbors(pos.col, pos.row).forEach((n) => {
         const nKey = this.hexKey(n.col, n.row);
-        if (path.indexOf(nKey) !== -1) return; // already part of this river's own path
+        if (path.indexOf(nKey) !== -1) return; // already part of this path's own course
         const nHex = this.getHex(n.col, n.row);
-        const isWater = includeWater && !!(nHex && WATER_TERRAINS[nHex.terrain]);
-        const otherRiverHere =
+        const isSnap = includeSnap && isSnapTarget(nHex);
+        const otherPathHere =
           endpointOwners[nKey] && Array.from(endpointOwners[nKey]).some((otherId) => otherId !== id);
-        if (isWater || otherRiverHere) out.push(nKey);
+        if (isSnap || otherPathHere) out.push(nKey);
       });
       return out;
     }
 
-    // Splits a path into the maximal runs where every hex is revealed —
-    // used only for the public/fog-respecting view, where a river crossing
-    // from explored into unexplored territory has to stop right at the
-    // boundary rather than get the GM-only faded/dashed treatment.
-    _riverVisibleRuns(path) {
-      const runs = [];
-      let current = [];
-      path.forEach((key) => {
-        const pos = this._keyToColRow(key);
-        const hex = pos && this.getHex(pos.col, pos.row);
-        if (hex && hex.revealed !== false) {
-          current.push(key);
-        } else {
-          if (current.length) runs.push(current);
-          current = [];
-        }
-      });
-      if (current.length) runs.push(current);
-      return runs;
-    }
-
-    // Rivers are drawn as one smooth curve per river (or per visible run,
-    // under fog) passing through every hex center on its path, plus:
+    // Shared by rivers and roads: each entry in `this.data[dataKey]` is
+    // drawn as one smooth curve passing through every hex center on its
+    // course, regardless of fog of war (rivers and roads are landscape
+    // features, exempt from fog the same way a rumour is), plus:
     //   - where a dangling end sits on the outer ring of the map, a short
     //     extension out to the true map edge (unless the GM has unchecked
-    //     "extend to map edge" for that particular end);
-    //   - where an end instead borders open water or another river, a
-    //     short straight stub connecting the two, same as before.
-    _paintRivers(ctx) {
-      const rivers = this.data.rivers || {};
-      const ids = Object.keys(rivers);
-      const WATER_TERRAINS = { ocean: true, coast: true, lake: true };
+    //     "clips to map edge" for that particular end);
+    //   - where an end instead borders its snap target (open water for a
+    //     river, a point of interest for a road) or another path of the
+    //     same kind, a short straight stub connecting the two.
+    // `isSnapTarget(hex)` decides what a dangling end auto-connects to;
+    // `snapStartField`/`snapEndField` are the per-path boolean fields
+    // gating that per end (e.g. "snapStartToWater"); `style` controls how
+    // it's drawn (see _applyPathStrokeStyle).
+    _paintPathNetwork(ctx, dataKey, isSnapTarget, snapStartField, snapEndField, style) {
+      const paths = this.data[dataKey] || {};
+      const ids = Object.keys(paths);
       const gridCenter = {
         x: (this.bounds.minX + this.bounds.maxX) / 2,
         y: (this.bounds.minY + this.bounds.maxY) / 2,
       };
 
-      // hexKey -> set of river ids that start or end there, so a
-      // neighboring river's end can be found in O(1) instead of rescanning
-      // every other river for every endpoint.
+      // hexKey -> set of path ids that start or end there, so a
+      // neighboring path's end can be found in O(1) instead of rescanning
+      // every other path for every endpoint.
       const endpointOwners = {};
       ids.forEach((id) => {
-        const path = rivers[id].path || [];
+        const path = paths[id].path || [];
         if (!path.length) return;
         [path[0], path[path.length - 1]].forEach((key) => {
           (endpointOwners[key] = endpointOwners[key] || new Set()).add(id);
@@ -622,8 +690,8 @@
       const drawnStubs = new Set(); // dedupe shared endpoint<->neighbor pairs
 
       ids.forEach((id) => {
-        const river = rivers[id];
-        const path = river.path || [];
+        const entry = paths[id];
+        const path = entry.path || [];
         if (!path.length) return;
 
         const startKey = path[0];
@@ -633,24 +701,24 @@
         const startCenter = this.hexCenter(startPos.col, startPos.row);
         const endCenter = this.hexCenter(endPos.col, endPos.row);
 
-        const startConnections = this._riverEndConnections(
+        const startConnections = this._pathEndConnections(
           id,
           path,
           startKey,
           endpointOwners,
-          WATER_TERRAINS,
-          river.snapStartToWater !== false
+          isSnapTarget,
+          entry[snapStartField] !== false
         );
         const endConnections =
           path.length > 1
-            ? this._riverEndConnections(id, path, endKey, endpointOwners, WATER_TERRAINS, river.snapEndToWater !== false)
+            ? this._pathEndConnections(id, path, endKey, endpointOwners, isSnapTarget, entry[snapEndField] !== false)
             : [];
 
         const wantsStartExtend =
-          river.edgeClipStart !== false && !startConnections.length && this._isBoundaryHex(startPos.col, startPos.row);
+          entry.edgeClipStart !== false && !startConnections.length && this._isBoundaryHex(startPos.col, startPos.row);
         const wantsEndExtend =
           path.length > 1 &&
-          river.edgeClipEnd !== false &&
+          entry.edgeClipEnd !== false &&
           !endConnections.length &&
           this._isBoundaryHex(endPos.col, endPos.row);
 
@@ -660,38 +728,20 @@
         const secondLastPoint = secondLastPos ? this.hexCenter(secondLastPos.col, secondLastPos.row) : null;
 
         const startExtension = wantsStartExtend
-          ? this._riverEdgeExtension(startCenter, secondPoint || gridCenter)
+          ? this._pathEdgeExtension(startCenter, secondPoint || gridCenter)
           : null;
         const endExtension = wantsEndExtend
-          ? this._riverEdgeExtension(endCenter, secondLastPoint || gridCenter)
+          ? this._pathEdgeExtension(endCenter, secondLastPoint || gridCenter)
           : null;
 
-        // ---- main path curve(s) ----
-        if (this.opts.respectFog) {
-          const runs = this._riverVisibleRuns(path);
-          runs.forEach((run) => {
-            const points = run.map((key) => {
-              const p = this._keyToColRow(key);
-              return this.hexCenter(p.col, p.row);
-            });
-            if (run[0] === startKey && startExtension) points.unshift(startExtension);
-            if (run[run.length - 1] === endKey && endExtension) points.push(endExtension);
-            this._strokeSmoothPath(ctx, points, false);
-          });
-        } else {
-          const points = path.map((key) => {
-            const p = this._keyToColRow(key);
-            return this.hexCenter(p.col, p.row);
-          });
-          if (startExtension) points.unshift(startExtension);
-          if (endExtension) points.push(endExtension);
-          const fullyRevealed = path.every((key) => {
-            const p = this._keyToColRow(key);
-            const hex = p && this.getHex(p.col, p.row);
-            return hex && hex.revealed !== false;
-          });
-          this._strokeSmoothPath(ctx, points, !fullyRevealed);
-        }
+        // ---- main path curve ----
+        const points = path.map((key) => {
+          const p = this._keyToColRow(key);
+          return this.hexCenter(p.col, p.row);
+        });
+        if (startExtension) points.unshift(startExtension);
+        if (endExtension) points.push(endExtension);
+        this._strokeSmoothPath(ctx, points, style);
 
         // ---- auto-connect stubs ----
         [
@@ -702,10 +752,37 @@
             const dedupeKey = [key, nKey].sort().join("|");
             if (drawnStubs.has(dedupeKey)) return;
             drawnStubs.add(dedupeKey);
-            this._paintRiverStub(ctx, key, nKey);
+            this._paintPathStub(ctx, key, nKey, style);
           });
         });
       });
+    }
+
+    _paintRivers(ctx) {
+      const WATER_TERRAINS = { ocean: true, coast: true, lake: true };
+      this._paintPathNetwork(
+        ctx,
+        "rivers",
+        (hex) => !!(hex && WATER_TERRAINS[hex.terrain]),
+        "snapStartToWater",
+        "snapEndToWater",
+        { color: "#4fa3d1", widthFactor: 0.16, minWidth: 1.5, dashed: false }
+      );
+    }
+
+    // Roads connect points of interest — any hex with a poi set — instead
+    // of open water, drawn thinner, dashed, and in a dirt-brown rather
+    // than river-blue so the two path networks stay visually distinct even
+    // where they cross.
+    _paintRoads(ctx) {
+      this._paintPathNetwork(
+        ctx,
+        "roads",
+        (hex) => !!(hex && hex.poi),
+        "snapStartToPOI",
+        "snapEndToPOI",
+        { color: "#8a6a3d", widthFactor: 0.07, minWidth: 1, dashed: true }
+      );
     }
 
     // Every other hex sharing the same physical point as corner `cornerIndex`
@@ -1198,6 +1275,168 @@
         ctx.textAlign = "center";
         ctx.fillStyle = "rgba(0,0,0,0.7)";
         ctx.fillText(`+${overflow}`, screen.x + totalWidth / 2 + spacing, y);
+        ctx.restore();
+      }
+    }
+
+    // Renders the whole map — terrain, coasts, roads, rivers, plus every
+    // location name, population, and entity marker always shown, not just
+    // the ones near the cursor or under the current hover/selection — to a
+    // fresh offscreen canvas at `opts.maxDimension` (default 3000px on the
+    // long edge), and returns that canvas for the caller to turn into a
+    // PNG download. Independent of whatever's currently on screen — pan,
+    // zoom, and hover state have no effect on the output, and calling this
+    // never mutates or redraws the live map.
+    //
+    // Fog of war still applies exactly as it does everywhere else: on a
+    // `respectFog: true` (public) instance, a hex not yet revealed is
+    // skipped the same way _paintHex already skips it (nothing painted
+    // unless it has a rumour). On a GM instance nothing is hidden, same as
+    // the GM's own live view.
+    exportImage(opts) {
+      opts = opts || {};
+      const targetLongEdge = opts.maxDimension || 3000;
+      const b = this.bounds;
+      const worldW = Math.max(1, b.maxX - b.minX);
+      const worldH = Math.max(1, b.maxY - b.minY);
+      const exportScale = targetLongEdge / Math.max(worldW, worldH);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(worldW * exportScale));
+      canvas.height = Math.max(1, Math.round(worldH * exportScale));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0d1117";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.scale(exportScale, exportScale);
+      ctx.translate(-b.minX, -b.minY);
+
+      for (let col = 0; col < this.cols; col++) {
+        for (let row = 0; row < this.rows; row++) {
+          this._paintHex(ctx, col, row);
+        }
+      }
+      this._paintRoads(ctx);
+      this._paintRivers(ctx);
+      this._paintExportLabels(ctx);
+
+      ctx.restore();
+      return canvas;
+    }
+
+    // Always-on version of the name/population/entity-marker overlay that
+    // _drawDynamicOverlay only draws for the hovered/selected hex (and only
+    // when zoomed in) — an exported image has no cursor and no zoom level,
+    // so everything that would ever be visible gets drawn every time. Runs
+    // directly in world space (same convention as _paintHex/_renderBitmap):
+    // font sizes and marker radii are expressed as fractions of `this.size`
+    // rather than screen pixels, so they come out consistently sized
+    // regardless of the export canvas's resolution.
+    _paintExportLabels(ctx) {
+      const s = this.size;
+      this._ensureEntityIndex();
+
+      for (let col = 0; col < this.cols; col++) {
+        for (let row = 0; row < this.rows; row++) {
+          const hex = this.getHex(col, row);
+          if (!hex) continue;
+          const revealed = hex.revealed !== false;
+          const hideFromViewer = this.opts.respectFog && !revealed;
+          if (hideFromViewer) continue;
+
+          const center = this.hexCenter(col, row);
+          const hasPopulation = hex.population !== undefined && hex.population !== null;
+
+          if (hex.poi || hasPopulation) {
+            const maxWidth = s * 1.7;
+            let lineY = center.y + s * 0.55;
+            if (hex.poi) {
+              const nameFont = `bold ${s * 0.32}px sans-serif`;
+              this._fillHaloText(
+                ctx,
+                this._truncateToWidth(ctx, hex.name || hex.poi, nameFont, maxWidth),
+                center.x,
+                lineY,
+                nameFont,
+                "#111"
+              );
+              lineY += s * 0.42;
+            }
+            if (hasPopulation) {
+              this._fillHaloText(
+                ctx,
+                hex.population === 0 ? "Uninhabited" : `Pop ${hex.population}`,
+                center.x,
+                lineY,
+                `${s * 0.22}px sans-serif`,
+                "rgba(0,0,0,0.8)"
+              );
+            }
+          }
+
+          const key = this.hexKey(col, row);
+          const hexEntityIds = this._entityIndex[key];
+          if (hexEntityIds && hexEntityIds.length) {
+            const visibleIds = this.opts.respectFog
+              ? hexEntityIds.filter((id) => this.entities[id] && this.entities[id].revealed !== false)
+              : hexEntityIds;
+            if (visibleIds.length) this._paintExportEntityMarkers(ctx, visibleIds, center);
+          }
+        }
+      }
+    }
+
+    // World-space counterpart to _drawEntityMarkers — same layout (up to 4
+    // markers in a row above the hex center, "+N" overflow badge), sized in
+    // fractions of `this.size` instead of the live view's `this.scale`,
+    // since export has no zoom level of its own.
+    _paintExportEntityMarkers(ctx, entityIds, center) {
+      const shown = entityIds.slice(0, 4);
+      const overflow = entityIds.length - shown.length;
+      const s = this.size;
+      const r = s * 0.22;
+      const spacing = r * 2.1;
+      const totalWidth = (shown.length - 1) * spacing;
+      const startX = center.x - totalWidth / 2;
+      const y = center.y - r * 1.9;
+
+      shown.forEach((id, i) => {
+        const e = this.entities[id];
+        if (!e) return;
+        const style = ENTITY_STYLES[e.type] || ENTITY_STYLES.npc;
+        const x = startX + i * spacing;
+
+        ctx.save();
+        if (!this.opts.respectFog && e.revealed === false) {
+          // GM-only: fainter, so it's clear at a glance the players don't
+          // know about this one yet — same convention as the live map.
+          ctx.globalAlpha = 0.55;
+          ctx.setLineDash([s * 0.02, s * 0.02]);
+        }
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = style.color;
+        ctx.fill();
+        ctx.lineWidth = s * 0.025;
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.font = `bold ${Math.max(s * 0.14, r * 0.9)}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(style.label, x, y + s * 0.01);
+        ctx.restore();
+      });
+
+      if (overflow > 0) {
+        ctx.save();
+        ctx.font = `bold ${r * 0.85}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillText(`+${overflow}`, center.x + totalWidth / 2 + spacing, y);
         ctx.restore();
       }
     }

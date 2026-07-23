@@ -79,6 +79,12 @@ html, body {
   white-space: nowrap;
 }
 
+#measure-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  max-width: 260px;
+}
+
 #toolbar button, #sidebar button {
   background: #21262d;
   color: var(--text);
@@ -91,6 +97,14 @@ html, body {
 
 #toolbar button:hover, #sidebar button:hover {
   background: #30363d;
+}
+
+#toolbar button:disabled, #sidebar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#toolbar button:disabled:hover, #sidebar button:disabled:hover {
+  background: #21262d;
 }
 
 #legend {
@@ -435,7 +449,9 @@ html, body {
 
 /* Entities directory modal */
 #entities-modal-backdrop,
-#rivers-modal-backdrop {
+#rivers-modal-backdrop,
+#roads-modal-backdrop,
+#search-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
@@ -448,12 +464,16 @@ html, body {
 }
 
 #entities-modal-backdrop.visible,
-#rivers-modal-backdrop.visible {
+#rivers-modal-backdrop.visible,
+#roads-modal-backdrop.visible,
+#search-modal-backdrop.visible {
   display: flex;
 }
 
 #entities-modal,
-#rivers-modal {
+#rivers-modal,
+#roads-modal,
+#search-modal {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -465,7 +485,9 @@ html, body {
 }
 
 #entities-modal h2,
-#rivers-modal h2 {
+#rivers-modal h2,
+#roads-modal h2,
+#search-modal h2 {
   margin: 0 0 12px;
   font-size: 16px;
   display: flex;
@@ -474,12 +496,16 @@ html, body {
 }
 
 #entities-modal h2 button,
-#rivers-modal h2 button {
+#rivers-modal h2 button,
+#roads-modal h2 button,
+#search-modal h2 button {
   font-size: 12px;
 }
 
 #entities-modal input[type="text"],
-#rivers-modal input[type="text"] {
+#rivers-modal input[type="text"],
+#roads-modal input[type="text"],
+#search-modal input[type="text"] {
   width: 100%;
   margin-bottom: 10px;
 }
@@ -584,7 +610,7 @@ html, body {
     max-width: calc(100vw - 24px);
   }
 
-  #entities-modal, #rivers-modal {
+  #entities-modal, #rivers-modal, #roads-modal, #search-modal {
     max-width: calc(100vw - 24px);
   }
 }
