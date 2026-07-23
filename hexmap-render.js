@@ -310,11 +310,21 @@
     /** Create (if id is new) or update a river. */
     setRiver(id, fields) {
       this.data.rivers[id] = Object.assign(
-        // edgeClipStart/edgeClipEnd default to true (extend that end to the
-        // map edge when it's dangling and already on the outer ring) so
-        // existing rivers saved before this field existed keep behaving
-        // like every other river instead of silently opting out.
-        { name: "", notes: "", secret: "", path: [], edgeClipStart: true, edgeClipEnd: true },
+        // edgeClipStart/edgeClipEnd and snapStartToWater/snapEndToWater all
+        // default to true (extend a dangling boundary end to the map edge;
+        // snap an end to nearby open water) so existing rivers saved before
+        // these fields existed keep behaving exactly like they did before —
+        // every river used to auto-snap to water unconditionally.
+        {
+          name: "",
+          notes: "",
+          secret: "",
+          path: [],
+          edgeClipStart: true,
+          edgeClipEnd: true,
+          snapStartToWater: true,
+          snapEndToWater: true,
+        },
         this.data.rivers[id],
         fields
       );
@@ -436,8 +446,12 @@
     // the stub joining a river's end to a neighboring hex it auto-connects
     // to (open water, or another river's end). A river's own path is a
     // smooth curve instead (see _strokeSmoothPath); this stays straight
-    // since it's always just one hop. Visibility is decided by both
-    // endpoint hexes' revealed state, same as before.
+    // since it's always just one hop. Visibility only depends on the
+    // river's own path endpoint (keyA) being revealed — the hex it's
+    // snapping to (keyB) doesn't have to be. A river visibly continuing
+    // toward the sea it hasn't been explored yet is fine to show, much
+    // like a rumour is exempt from fog: it's just a line pointing the way,
+    // not a reveal of anything actually on that unexplored hex.
     _paintRiverStub(ctx, keyA, keyB) {
       const a = this._keyToColRow(keyA);
       const b = this._keyToColRow(keyB);
@@ -447,7 +461,7 @@
       if (!hexA || !hexB) return;
       const revealedA = hexA.revealed !== false;
       const revealedB = hexB.revealed !== false;
-      if (this.opts.respectFog && (!revealedA || !revealedB)) return;
+      if (this.opts.respectFog && !revealedA) return;
 
       const centerA = this.hexCenter(a.col, a.row);
       const centerB = this.hexCenter(b.col, b.row);
@@ -532,11 +546,15 @@
     }
 
     // Hex keys this river's end at `key` already auto-connects to (open
-    // water, or another river's end). An end with any connections gets a
-    // stub instead of an edge extension — the two are mutually exclusive,
-    // since an end already visibly flowing into a lake has nowhere else to
-    // terminate toward.
-    _riverEndConnections(id, path, key, endpointOwners, WATER_TERRAINS) {
+    // water, if `includeWater` — the GM's per-end "snap to nearby water"
+    // toggle — or another river's end, always). An end with any
+    // connections gets a stub instead of an edge extension — the two are
+    // mutually exclusive, since an end already visibly flowing into a lake
+    // has nowhere else to terminate toward. Joining another river is left
+    // out of that toggle entirely — snapping to water and joining a
+    // tributary are different things, and there's rarely a reason not to
+    // want two rivers that already meet to visibly connect.
+    _riverEndConnections(id, path, key, endpointOwners, WATER_TERRAINS, includeWater) {
       const pos = this._keyToColRow(key);
       if (!pos) return [];
       const out = [];
@@ -544,7 +562,7 @@
         const nKey = this.hexKey(n.col, n.row);
         if (path.indexOf(nKey) !== -1) return; // already part of this river's own path
         const nHex = this.getHex(n.col, n.row);
-        const isWater = !!(nHex && WATER_TERRAINS[nHex.terrain]);
+        const isWater = includeWater && !!(nHex && WATER_TERRAINS[nHex.terrain]);
         const otherRiverHere =
           endpointOwners[nKey] && Array.from(endpointOwners[nKey]).some((otherId) => otherId !== id);
         if (isWater || otherRiverHere) out.push(nKey);
@@ -615,9 +633,18 @@
         const startCenter = this.hexCenter(startPos.col, startPos.row);
         const endCenter = this.hexCenter(endPos.col, endPos.row);
 
-        const startConnections = this._riverEndConnections(id, path, startKey, endpointOwners, WATER_TERRAINS);
+        const startConnections = this._riverEndConnections(
+          id,
+          path,
+          startKey,
+          endpointOwners,
+          WATER_TERRAINS,
+          river.snapStartToWater !== false
+        );
         const endConnections =
-          path.length > 1 ? this._riverEndConnections(id, path, endKey, endpointOwners, WATER_TERRAINS) : [];
+          path.length > 1
+            ? this._riverEndConnections(id, path, endKey, endpointOwners, WATER_TERRAINS, river.snapEndToWater !== false)
+            : [];
 
         const wantsStartExtend =
           river.edgeClipStart !== false && !startConnections.length && this._isBoundaryHex(startPos.col, startPos.row);
