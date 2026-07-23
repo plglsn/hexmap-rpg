@@ -464,7 +464,8 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "2,46": {
-   "revealed": false
+   "revealed": false,
+   "locationTier": "major"
   },
   "2,47": {
    "revealed": false
