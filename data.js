@@ -1157,6 +1157,7 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "6,43": {
+   "terrain": "ocean",
    "revealed": false,
    "locationTier": "major"
   },
@@ -1341,6 +1342,7 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "7,42": {
+   "terrain": "ocean",
    "revealed": false,
    "locationTier": "major"
   },
@@ -1527,6 +1529,7 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "8,42": {
+   "terrain": "ocean",
    "revealed": false,
    "locationTier": "major"
   },

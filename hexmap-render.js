@@ -329,6 +329,11 @@
           edgeClipEnd: true,
           snapStartToWater: true,
           snapEndToWater: true,
+          // Off by default so existing rivers keep shipping in full
+          // regardless of fog of war, same as before this field existed —
+          // the GM opts a particular river into hiding its unexplored
+          // stretches, rather than every river doing it unconditionally.
+          hideUnexplored: false,
         },
         this.data.rivers[id],
         fields
@@ -364,6 +369,7 @@
           edgeClipEnd: true,
           snapStartToPOI: true,
           snapEndToPOI: true,
+          hideUnexplored: false,
         },
         this.data.roads[id],
         fields
@@ -517,10 +523,12 @@
 
     // `style` is { color, widthFactor, minWidth, dashed } — shared by
     // rivers (solid blue) and roads (dashed brown), the two "path network"
-    // features drawn this way. Rivers and roads are landscape features
-    // that show fully regardless of fog of war (like a rumour, they're
-    // exempt) — there's no separate "faded/fogged" treatment to apply
-    // here, unlike hex terrain itself.
+    // features drawn this way. By default a river/road shows fully
+    // regardless of fog of war (like a rumour, exempt), and a GM can opt a
+    // particular one into hiding its unexplored stretches instead (see
+    // _paintPathNetwork) — either way there's no separate "faded/fogged"
+    // color/width treatment applied here; a hidden stretch is simply not
+    // drawn at all, rather than drawn differently.
     _applyPathStrokeStyle(ctx, style) {
       if (style.dashed) {
         ctx.setLineDash([this.size * 0.22, this.size * 0.14]);
@@ -653,16 +661,73 @@
       return out;
     }
 
+    // Splits `path` (an ordered array of hex keys) into the maximal
+    // contiguous runs of revealed hexes, as {start, end} index pairs
+    // (inclusive) into `path`. Only used when a river/road has opted into
+    // "hide on unexplored hexes" and the current viewer respects fog (see
+    // _paintPathNetwork) — an unrevealed hex along the course simply isn't
+    // part of any run, splitting the drawn course around it the same way
+    // hexes/entities are already hidden elsewhere.
+    _revealedPathRuns(path) {
+      const runs = [];
+      let runStart = null;
+      for (let i = 0; i < path.length; i++) {
+        const pos = this._keyToColRow(path[i]);
+        const hex = pos && this.getHex(pos.col, pos.row);
+        const revealed = !!(hex && hex.revealed !== false);
+        if (revealed) {
+          if (runStart === null) runStart = i;
+        } else if (runStart !== null) {
+          runs.push({ start: runStart, end: i - 1 });
+          runStart = null;
+        }
+      }
+      if (runStart !== null) runs.push({ start: runStart, end: path.length - 1 });
+      return runs;
+    }
+
+    // Where a visible run gets cut off by fog rather than ending for real,
+    // this is the point the curve should actually stop at: the midpoint of
+    // the physical edge (keyA)'s hex shares with (keyB)'s hex, not either
+    // hex's own center — stopping dead at a hex's center would look like
+    // the river/road just gives up in the middle of that hex, rather than
+    // continuing on past what's currently been explored. For a regular hex
+    // grid, the line connecting two adjacent hexes' centers is bisected by
+    // their shared edge, so that midpoint needs no extra corner geometry —
+    // it's just the midpoint of the two centers.
+    _pathFogEdgePoint(keyA, keyB) {
+      const a = this._keyToColRow(keyA);
+      const b = this._keyToColRow(keyB);
+      if (!a || !b) return null;
+      const centerA = this.hexCenter(a.col, a.row);
+      const centerB = this.hexCenter(b.col, b.row);
+      return { x: (centerA.x + centerB.x) / 2, y: (centerA.y + centerB.y) / 2 };
+    }
+
     // Shared by rivers and roads: each entry in `this.data[dataKey]` is
     // drawn as one smooth curve passing through every hex center on its
-    // course, regardless of fog of war (rivers and roads are landscape
-    // features, exempt from fog the same way a rumour is), plus:
+    // course, plus:
     //   - where a dangling end sits on the outer ring of the map, a short
     //     extension out to the true map edge (unless the GM has unchecked
     //     "clips to map edge" for that particular end);
     //   - where an end instead borders its snap target (open water for a
     //     river, a point of interest for a road) or another path of the
     //     same kind, a short straight stub connecting the two.
+    // By default a river/road is a landscape feature exempt from fog of
+    // war, the same way a rumour is — it ships and draws in full
+    // regardless of which hexes along it are revealed. A GM can opt a
+    // particular one into `hideUnexplored` instead, which — only for a
+    // viewer that respects fog at all (the public build, or the GM's own
+    // "Preview as player" toggle; the GM's regular view always sees
+    // everything) — draws only the stretches sitting on revealed hexes,
+    // splitting the course at every unrevealed hex it crosses (see
+    // _revealedPathRuns). Where a stretch gets cut short by fog rather than
+    // ending for real, it's extended to the shared edge with the
+    // unrevealed hex beyond it (_pathFogEdgePoint) instead of stopping
+    // abruptly at the last revealed hex's center — auto-connect stubs and
+    // map-edge extensions still only ever apply at the path's true start/
+    // end, never at a fog cut, since a fog cut isn't a logical endpoint of
+    // the river/road, just where the viewer's knowledge of it stops.
     // `isSnapTarget(hex)` decides what a dangling end auto-connects to;
     // `snapStartField`/`snapEndField` are the per-path boolean fields
     // gating that per end (e.g. "snapStartToWater"); `style` controls how
@@ -694,65 +759,77 @@
         const path = entry.path || [];
         if (!path.length) return;
 
-        const startKey = path[0];
-        const endKey = path[path.length - 1];
-        const startPos = this._keyToColRow(startKey);
-        const endPos = this._keyToColRow(endKey);
-        const startCenter = this.hexCenter(startPos.col, startPos.row);
-        const endCenter = this.hexCenter(endPos.col, endPos.row);
+        const fogAware = entry.hideUnexplored && this.opts.respectFog;
+        const runs = fogAware ? this._revealedPathRuns(path) : [{ start: 0, end: path.length - 1 }];
 
-        const startConnections = this._pathEndConnections(
-          id,
-          path,
-          startKey,
-          endpointOwners,
-          isSnapTarget,
-          entry[snapStartField] !== false
-        );
-        const endConnections =
-          path.length > 1
-            ? this._pathEndConnections(id, path, endKey, endpointOwners, isSnapTarget, entry[snapEndField] !== false)
+        runs.forEach((run) => {
+          const isTrueStart = run.start === 0;
+          const isTrueEnd = run.end === path.length - 1;
+          const startKey = path[run.start];
+          const endKey = path[run.end];
+          const startPos = this._keyToColRow(startKey);
+          const endPos = this._keyToColRow(endKey);
+          const startCenter = this.hexCenter(startPos.col, startPos.row);
+          const endCenter = this.hexCenter(endPos.col, endPos.row);
+
+          const startConnections = isTrueStart
+            ? this._pathEndConnections(id, path, startKey, endpointOwners, isSnapTarget, entry[snapStartField] !== false)
             : [];
+          const endConnections =
+            isTrueEnd && path.length > 1
+              ? this._pathEndConnections(id, path, endKey, endpointOwners, isSnapTarget, entry[snapEndField] !== false)
+              : [];
 
-        const wantsStartExtend =
-          entry.edgeClipStart !== false && !startConnections.length && this._isBoundaryHex(startPos.col, startPos.row);
-        const wantsEndExtend =
-          path.length > 1 &&
-          entry.edgeClipEnd !== false &&
-          !endConnections.length &&
-          this._isBoundaryHex(endPos.col, endPos.row);
+          const wantsStartExtend =
+            isTrueStart &&
+            entry.edgeClipStart !== false &&
+            !startConnections.length &&
+            this._isBoundaryHex(startPos.col, startPos.row);
+          const wantsEndExtend =
+            isTrueEnd &&
+            path.length > 1 &&
+            entry.edgeClipEnd !== false &&
+            !endConnections.length &&
+            this._isBoundaryHex(endPos.col, endPos.row);
 
-        const secondPos = path.length > 1 ? this._keyToColRow(path[1]) : null;
-        const secondPoint = secondPos ? this.hexCenter(secondPos.col, secondPos.row) : null;
-        const secondLastPos = path.length > 1 ? this._keyToColRow(path[path.length - 2]) : null;
-        const secondLastPoint = secondLastPos ? this.hexCenter(secondLastPos.col, secondLastPos.row) : null;
+          const secondPos = run.end > run.start ? this._keyToColRow(path[run.start + 1]) : null;
+          const secondPoint = secondPos ? this.hexCenter(secondPos.col, secondPos.row) : null;
+          const secondLastPos = run.end > run.start ? this._keyToColRow(path[run.end - 1]) : null;
+          const secondLastPoint = secondLastPos ? this.hexCenter(secondLastPos.col, secondLastPos.row) : null;
 
-        const startExtension = wantsStartExtend
-          ? this._pathEdgeExtension(startCenter, secondPoint || gridCenter)
-          : null;
-        const endExtension = wantsEndExtend
-          ? this._pathEdgeExtension(endCenter, secondLastPoint || gridCenter)
-          : null;
+          const startExtension = wantsStartExtend
+            ? this._pathEdgeExtension(startCenter, secondPoint || gridCenter)
+            : null;
+          const endExtension = wantsEndExtend
+            ? this._pathEdgeExtension(endCenter, secondLastPoint || gridCenter)
+            : null;
 
-        // ---- main path curve ----
-        const points = path.map((key) => {
-          const p = this._keyToColRow(key);
-          return this.hexCenter(p.col, p.row);
-        });
-        if (startExtension) points.unshift(startExtension);
-        if (endExtension) points.push(endExtension);
-        this._strokeSmoothPath(ctx, points, style);
+          const startFogCut = !isTrueStart ? this._pathFogEdgePoint(path[run.start - 1], startKey) : null;
+          const endFogCut = !isTrueEnd ? this._pathFogEdgePoint(endKey, path[run.end + 1]) : null;
 
-        // ---- auto-connect stubs ----
-        [
-          { key: startKey, connections: startConnections },
-          { key: endKey, connections: endConnections },
-        ].forEach(({ key, connections }) => {
-          connections.forEach((nKey) => {
-            const dedupeKey = [key, nKey].sort().join("|");
-            if (drawnStubs.has(dedupeKey)) return;
-            drawnStubs.add(dedupeKey);
-            this._paintPathStub(ctx, key, nKey, style);
+          // ---- main path curve (just this run, when fog-split) ----
+          const points = [];
+          for (let i = run.start; i <= run.end; i++) {
+            const p = this._keyToColRow(path[i]);
+            points.push(this.hexCenter(p.col, p.row));
+          }
+          if (startExtension) points.unshift(startExtension);
+          if (startFogCut) points.unshift(startFogCut);
+          if (endExtension) points.push(endExtension);
+          if (endFogCut) points.push(endFogCut);
+          this._strokeSmoothPath(ctx, points, style);
+
+          // ---- auto-connect stubs (true endpoints only) ----
+          [
+            { key: startKey, connections: startConnections },
+            { key: endKey, connections: endConnections },
+          ].forEach(({ key, connections }) => {
+            connections.forEach((nKey) => {
+              const dedupeKey = [key, nKey].sort().join("|");
+              if (drawnStubs.has(dedupeKey)) return;
+              drawnStubs.add(dedupeKey);
+              this._paintPathStub(ctx, key, nKey, style);
+            });
           });
         });
       });
@@ -805,18 +882,31 @@
       return found;
     }
 
+    // True if (col,row) is open water (ocean or lake), purely from
+    // whatever terrain data this HexMap actually has for it. Deliberately
+    // NOT fog-aware — a revealed coast hex's shoreline shape is allowed to
+    // hint at what an adjacent unrevealed hex is (that's not treated as a
+    // spoiler here), so build.py ships the `terrain` field for a hex
+    // whenever a revealed coast hex neighbors it, specifically so this can
+    // render the correct shoreline shape on the public build too, not just
+    // in the GM's own view. Nothing else about that neighbor (name, notes,
+    // secret, population, POI) is shipped early — only its terrain type,
+    // and only when a revealed coast hex actually borders it.
+    _isWaterNeighbor(col, row) {
+      const hex = this.getHex(col, row);
+      return !!hex && (hex.terrain === "ocean" || hex.terrain === "lake");
+    }
+
     // A corner "borders water" if any hex meeting at that exact physical
-    // point (this hex's own neighbors that share the vertex) is ocean or
-    // lake. Because this only depends on the vertex's location and the
-    // terrain of the hexes touching it — never on which hex is asking —
-    // two coast hexes that share a corner always agree on its
+    // point (this hex's own neighbors that share the vertex) reads as
+    // water to this viewer (see _isWaterNeighbor). Because this only
+    // depends on the vertex's location and what the hexes touching it look
+    // like to THIS viewer — never on which hex is asking — two coast hexes
+    // that share a corner and see the same fog state always agree on its
     // classification, which is what lets their shorelines meet exactly
     // without any extra coordination.
     _isWaterCorner(col, row, cornerIndex) {
-      return this._hexesAtCorner(col, row, cornerIndex).some((n) => {
-        const nHex = this.getHex(n.col, n.row);
-        return nHex && (nHex.terrain === "ocean" || nHex.terrain === "lake");
-      });
+      return this._hexesAtCorner(col, row, cornerIndex).some((n) => this._isWaterNeighbor(n.col, n.row));
     }
 
     // Longest run of `true` in a cyclic boolean array (wrap-around allowed),
@@ -858,10 +948,11 @@
       let waterTerrainSeen = null;
       for (let i = 0; i < 6; i++) {
         const hexesHere = this._hexesAtCorner(col, row, i);
-        const waterHex = hexesHere.find((n) => {
-          const nHex = this.getHex(n.col, n.row);
-          return nHex && (nHex.terrain === "ocean" || nHex.terrain === "lake");
-        });
+        // _isWaterNeighbor(), not a raw terrain check — a neighbor the
+        // current viewer hasn't discovered yet (fog of war permitting)
+        // never counts as water for them, so a coast hex's shoreline curve
+        // only ever reflects what that viewer could actually know.
+        const waterHex = hexesHere.find((n) => this._isWaterNeighbor(n.col, n.row));
         waterCorner.push(!!waterHex);
         if (waterHex && !waterTerrainSeen) waterTerrainSeen = this.getHex(waterHex.col, waterHex.row).terrain;
       }
