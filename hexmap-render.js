@@ -107,6 +107,15 @@
       this._entityIndex = null; // hexKey -> [entityId, ...]
       this._entityIndexDirty = true;
 
+      // Cheap cached flag: does any hex have a "major" named location? Used
+      // to decide whether the dynamic overlay pass can bail out early when
+      // zoomed out with nothing selected/hovered — without it, a major
+      // location's name would only ever get a chance to render once the
+      // view happened to already be zoomed in or something else forced a
+      // pass over the hexes.
+      this._hasMajorNamed = false;
+      this._namedFlagDirty = true;
+
       // Rivers — a named path of adjacent hex keys, drawn as a line across
       // the hexes it crosses (independent of each hex's own terrain).
       // { id: { name, notes, secret, path: ["col,row", ...] } }
@@ -224,12 +233,22 @@
         fields
       );
       this._bitmapDirty = true;
+      this._namedFlagDirty = true;
     }
 
     /** Call after mutating this.data directly (e.g. bulk reveal/hide, import). */
     invalidate() {
       this._bitmapDirty = true;
       this._entityIndexDirty = true;
+      this._namedFlagDirty = true;
+    }
+
+    _ensureMajorNamedFlag() {
+      if (!this._namedFlagDirty) return;
+      this._hasMajorNamed = Object.values(this.data.hexes).some(
+        (h) => h && h.poi && h.locationTier !== "minor"
+      );
+      this._namedFlagDirty = false;
     }
 
     // ---- entities (NPCs / events / locations) ----
@@ -648,12 +667,13 @@
       const ctx = this.ctx;
       const showLabels = this.scale > 1.6;
       this._ensureEntityIndex();
+      this._ensureMajorNamedFlag();
       const hasEntities = Object.keys(this._entityIndex).length > 0;
 
       const hoverHex = this._keyToColRow(this.hoverKey);
       const needsHighlight = this.selected || hoverHex;
 
-      if (!showLabels && !needsHighlight && !hasEntities) return;
+      if (!showLabels && !needsHighlight && !hasEntities && !this._hasMajorNamed) return;
 
       const s = this.size;
       const topLeft = this.screenToWorld(0, 0);
@@ -669,10 +689,16 @@
           const isSelected = this.selected && this.selected.col === col && this.selected.row === row;
           const isHover = this.hoverKey === key;
           const hexEntityIds = this._entityIndex[key];
-          if (!isSelected && !isHover && !showLabels && !hexEntityIds) continue;
 
           const hex = this.getHex(col, row);
           if (!hex) continue;
+          // A "major" named location is drawn regardless of zoom level —
+          // that's the whole point of the tier (see below) — so it needs
+          // to opt back into the per-hex loop even when everything else
+          // says "skip, nothing to draw here."
+          const isMajorNamed = hex.poi && hex.locationTier !== "minor";
+          if (!isSelected && !isHover && !showLabels && !hexEntityIds && !isMajorNamed) continue;
+
           const revealed = hex.revealed !== false;
           const hideFromViewer = this.opts.respectFog && !revealed;
 
@@ -712,49 +738,40 @@
             );
           }
 
-          // Names are shown either because the view is zoomed in enough to
-          // read them ("showLabels"), or because this particular hex is
-          // the one currently selected/hovered. A "minor" location's name
-          // only ever appears in the second case — on its own it's too
-          // small a landmark to compete for screen space with everything
-          // else, but pointing at it should still say what it's called.
-          // "Major" locations behave as before and show under either
-          // condition.
+          // A "major" location's name is meant to be a landmark you can
+          // always read at a glance, so it shows regardless of zoom level.
+          // A "minor" location's name would otherwise clutter the map with
+          // every little village at once, so it only appears once you've
+          // actually selected or hovered that hex.
           const highlighted = isSelected || isHover;
-          if ((showLabels || highlighted) && !hideFromViewer) {
-            // Clip name/population text to this hex's own outline so a
-            // long name can't visually bleed into a neighboring hex —
-            // it's cropped at the border instead of overlapping.
-            ctx.save();
-            ctx.beginPath();
-            screenCorners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-            ctx.closePath();
-            ctx.clip();
+          const isMinor = hex.locationTier === "minor";
+          const showName = hex.poi && !hideFromViewer && (!isMinor || highlighted);
+          const showPopulation = showLabels && !hideFromViewer && hex.population !== undefined && hex.population !== null;
 
-            // A name only gets shown alongside a point of interest — a
-            // POI with no custom name yet just falls back to its category
-            // ("Ruins") so the map isn't blank for it.
-            let lineY = screen.y + s * this.scale * 0.7;
-            if (hex.poi) {
-              const isMinor = hex.locationTier === "minor";
-              if (!isMinor || highlighted) {
-                this._fillHaloText(
-                  ctx,
-                  hex.name || hex.poi,
-                  screen.x,
-                  lineY,
-                  `bold ${Math.max(9, 10 * this.scale)}px sans-serif`,
-                  "#111"
-                );
-                lineY += s * this.scale * 0.42;
-              }
+          if (showName || showPopulation) {
+            // Text used to be geometrically clipped to the hex's own
+            // outline to stop a long name bleeding into a neighbor — but
+            // that clip cut straight through the bottom of the letters
+            // themselves, so the name looked like it was vanishing under
+            // the hex below it. Horizontal bleed is kept in check instead
+            // by truncating text wider than the hex, and the halo behind
+            // it keeps it legible over whatever it ends up sitting near.
+            const maxWidth = s * this.scale * 1.7;
+            let lineY = screen.y + s * this.scale * 0.55;
+            if (showName) {
+              const nameFont = `bold ${Math.max(9, 10 * this.scale)}px sans-serif`;
+              this._fillHaloText(
+                ctx,
+                this._truncateToWidth(ctx, hex.name || hex.poi, nameFont, maxWidth),
+                screen.x,
+                lineY,
+                nameFont,
+                "#111"
+              );
+              lineY += s * this.scale * 0.42;
             }
 
-            // Population is independent of name/POI — even a plain,
-            // unnamed hex can carry a small population figure. Left tied
-            // to the zoom threshold rather than the highlight state, same
-            // as before.
-            if (showLabels && hex.population !== undefined && hex.population !== null) {
+            if (showPopulation) {
               this._fillHaloText(
                 ctx,
                 hex.population === 0 ? "Uninhabited" : `Pop ${hex.population}`,
@@ -764,7 +781,6 @@
                 "rgba(0,0,0,0.8)"
               );
             }
-            ctx.restore();
           }
 
           if (hexEntityIds && !hideFromViewer) {
@@ -844,6 +860,30 @@
       ctx.fillStyle = fillStyle;
       ctx.fillText(text, x, y);
       ctx.restore();
+    }
+
+    // Shortens text with a trailing "…" if it would render wider than
+    // maxWidth, so an unusually long name is bounded horizontally without
+    // resorting to a hard geometric clip (which chops through the middle
+    // of letters rather than just shortening the word).
+    _truncateToWidth(ctx, text, font, maxWidth) {
+      ctx.save();
+      ctx.font = font;
+      const full = ctx.measureText(text);
+      if (!full || full.width <= maxWidth) {
+        ctx.restore();
+        return text;
+      }
+      let lo = 0,
+        hi = text.length;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        const candidate = text.slice(0, mid) + "…";
+        if (ctx.measureText(candidate).width <= maxWidth) lo = mid;
+        else hi = mid - 1;
+      }
+      ctx.restore();
+      return lo > 0 ? text.slice(0, lo) + "…" : "…";
     }
 
     // ---- interaction ----
