@@ -712,7 +712,16 @@
             );
           }
 
-          if (showLabels && !hideFromViewer) {
+          // Names are shown either because the view is zoomed in enough to
+          // read them ("showLabels"), or because this particular hex is
+          // the one currently selected/hovered. A "minor" location's name
+          // only ever appears in the second case — on its own it's too
+          // small a landmark to compete for screen space with everything
+          // else, but pointing at it should still say what it's called.
+          // "Major" locations behave as before and show under either
+          // condition.
+          const highlighted = isSelected || isHover;
+          if ((showLabels || highlighted) && !hideFromViewer) {
             // Clip name/population text to this hex's own outline so a
             // long name can't visually bleed into a neighboring hex —
             // it's cropped at the border instead of overlapping.
@@ -727,20 +736,25 @@
             // ("Ruins") so the map isn't blank for it.
             let lineY = screen.y + s * this.scale * 0.7;
             if (hex.poi) {
-              this._fillHaloText(
-                ctx,
-                hex.name || hex.poi,
-                screen.x,
-                lineY,
-                `bold ${Math.max(9, 10 * this.scale)}px sans-serif`,
-                "#111"
-              );
-              lineY += s * this.scale * 0.42;
+              const isMinor = hex.locationTier === "minor";
+              if (!isMinor || highlighted) {
+                this._fillHaloText(
+                  ctx,
+                  hex.name || hex.poi,
+                  screen.x,
+                  lineY,
+                  `bold ${Math.max(9, 10 * this.scale)}px sans-serif`,
+                  "#111"
+                );
+                lineY += s * this.scale * 0.42;
+              }
             }
 
             // Population is independent of name/POI — even a plain,
-            // unnamed hex can carry a small population figure.
-            if (hex.population !== undefined && hex.population !== null) {
+            // unnamed hex can carry a small population figure. Left tied
+            // to the zoom threshold rather than the highlight state, same
+            // as before.
+            if (showLabels && hex.population !== undefined && hex.population !== null) {
               this._fillHaloText(
                 ctx,
                 hex.population === 0 ? "Uninhabited" : `Pop ${hex.population}`,
