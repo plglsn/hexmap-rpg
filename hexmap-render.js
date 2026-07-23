@@ -733,7 +733,7 @@
               `${col},${row}`,
               screen.x,
               screen.y - s * this.scale * 0.5,
-              `${Math.max(8, 9 * this.scale)}px sans-serif`,
+              `${Math.min(16, Math.max(8, 9 * this.scale))}px sans-serif`,
               "rgba(0,0,0,0.8)"
             );
           }
@@ -756,10 +756,18 @@
             // the hex below it. Horizontal bleed is kept in check instead
             // by truncating text wider than the hex, and the halo behind
             // it keeps it legible over whatever it ends up sitting near.
+            // The hex's on-screen footprint (and so the room available for
+            // its name) keeps growing the further in you zoom — but the
+            // font size used to grow right along with it, uncapped, so the
+            // number of characters that actually fit never improved no
+            // matter how far you zoomed in. Capping the font size here
+            // means maxWidth keeps outpacing it at high zoom, so zooming
+            // in on a long name now actually reveals more of it, the way
+            // you'd expect.
             const maxWidth = s * this.scale * 1.7;
             let lineY = screen.y + s * this.scale * 0.55;
             if (showName) {
-              const nameFont = `bold ${Math.max(9, 10 * this.scale)}px sans-serif`;
+              const nameFont = `bold ${Math.min(20, Math.max(9, 10 * this.scale))}px sans-serif`;
               this._fillHaloText(
                 ctx,
                 this._truncateToWidth(ctx, hex.name || hex.poi, nameFont, maxWidth),
@@ -777,7 +785,7 @@
                 hex.population === 0 ? "Uninhabited" : `Pop ${hex.population}`,
                 screen.x,
                 lineY,
-                `${Math.max(8, 8.5 * this.scale)}px sans-serif`,
+                `${Math.min(16, Math.max(8, 8.5 * this.scale))}px sans-serif`,
                 "rgba(0,0,0,0.8)"
               );
             }
