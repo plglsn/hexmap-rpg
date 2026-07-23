@@ -7953,7 +7953,8 @@ const HEX_DATA = {
    "edgeClipStart": false,
    "edgeClipEnd": true,
    "snapStartToWater": false,
-   "snapEndToWater": true
+   "snapEndToWater": true,
+   "hideUnexplored": true
   }
  },
  "roads": {}
