@@ -340,13 +340,26 @@ html, body {
   margin-bottom: 8px;
 }
 
-.entity-card-row select {
+/* Also qualified with #sidebar: the hex sidebar has its own
+   `#sidebar select` / `#sidebar input[type="text"]` rule (width: 100%,
+   for the hex's own Terrain/POI dropdowns) which — being ID-scoped — beats
+   the plain class rules below on specificity alone. Without the #sidebar
+   versions here, an entity card's type dropdown would claim the full row
+   width inside the hex sidebar specifically (nowrap, so the sibling Name
+   input gets squeezed to nothing) even though the identical markup renders
+   fine in the NPCs & Events modal, which has no competing ID-scoped select
+   rule. Both selectors are kept so this stays correct in whichever
+   container an entity card happens to render in. */
+.entity-card-row select,
+#sidebar .entity-card-row select {
   width: auto;
   flex: 0 0 auto;
 }
 
-.entity-card-row input[type="text"] {
+.entity-card-row input[type="text"],
+#sidebar .entity-card-row input[type="text"] {
   flex: 1;
+  width: auto;
 }
 
 .entity-card textarea {

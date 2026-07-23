@@ -7967,6 +7967,34 @@ const HEX_DATA = {
    "notes": "Human Blacksmith",
    "hex": "5,45",
    "revealed": true
+  },
+  "entity_mry64wb3q7ph": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Minstrel",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry65aw2jusq": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Minstrel\nPlays flute",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry65wv9s4mu": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Cultist",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry669a08r46": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Scout",
+   "hex": "5,45",
+   "revealed": true
   }
  },
  "poiTypes": [
