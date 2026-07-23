@@ -445,21 +445,11 @@ const HEX_DATA = {
    "revealed": false
   },
   "2,41": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "2,42": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "2,43": {
@@ -606,30 +596,15 @@ const HEX_DATA = {
    "revealed": false
   },
   "3,40": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "3,41": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "3,42": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "3,43": {
@@ -808,12 +783,7 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "4,43": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "4,44": {
@@ -1184,12 +1154,8 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "6,43": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": ""
+   "revealed": false,
+   "locationTier": "major"
   },
   "6,44": {
    "terrain": "ocean",
@@ -1371,12 +1337,8 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "7,42": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": ""
+   "revealed": false,
+   "locationTier": "major"
   },
   "7,43": {
    "terrain": "coast",
@@ -1561,12 +1523,8 @@ const HEX_DATA = {
    "locationTier": "major"
   },
   "8,42": {
-   "terrain": "ocean",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": ""
+   "revealed": false,
+   "locationTier": "major"
   },
   "8,43": {
    "terrain": "ocean",
@@ -2127,12 +2085,7 @@ const HEX_DATA = {
    "revealed": false
   },
   "11,38": {
-   "terrain": "desert",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "11,39": {
@@ -2325,12 +2278,7 @@ const HEX_DATA = {
    "revealed": false
   },
   "12,39": {
-   "terrain": "desert",
-   "name": "",
-   "notes": "",
-   "rumours": "",
-   "revealed": true,
-   "poi": "",
+   "revealed": false,
    "locationTier": "major"
   },
   "12,40": {
