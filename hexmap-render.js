@@ -305,7 +305,11 @@
     /** Create (if id is new) or update a river. */
     setRiver(id, fields) {
       this.data.rivers[id] = Object.assign(
-        { name: "", notes: "", secret: "", path: [] },
+        // edgeClipStart/edgeClipEnd default to true (extend that end to the
+        // map edge when it's dangling and already on the outer ring) so
+        // existing rivers saved before this field existed keep behaving
+        // like every other river instead of silently opting out.
+        { name: "", notes: "", secret: "", path: [], edgeClipStart: true, edgeClipEnd: true },
         this.data.rivers[id],
         fields
       );
@@ -411,12 +415,25 @@
       this._bitmapDirty = false;
     }
 
-    // One hex-center-to-hex-center segment of a river, on top of terrain.
-    // Visibility is decided by the two endpoint hexes' revealed state — a
-    // river crossing from explored into unexplored territory just fades
-    // out at the boundary instead of leaking the unexplored portion's
-    // shape.
-    _paintRiverSegment(ctx, keyA, keyB) {
+    _applyRiverStrokeStyle(ctx, faded) {
+      if (faded) {
+        // GM-only: fainter + dashed to flag it crosses fogged ground.
+        ctx.globalAlpha = 0.5;
+        ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
+      }
+      ctx.strokeStyle = "#4fa3d1";
+      ctx.lineWidth = Math.max(1.5, this.size * 0.16);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+    }
+
+    // A short straight hex-center-to-hex-center connector — used only for
+    // the stub joining a river's end to a neighboring hex it auto-connects
+    // to (open water, or another river's end). A river's own path is a
+    // smooth curve instead (see _strokeSmoothPath); this stays straight
+    // since it's always just one hop. Visibility is decided by both
+    // endpoint hexes' revealed state, same as before.
+    _paintRiverStub(ctx, keyA, keyB) {
       const a = this._keyToColRow(keyA);
       const b = this._keyToColRow(keyB);
       if (!a || !b) return;
@@ -429,16 +446,10 @@
 
       const centerA = this.hexCenter(a.col, a.row);
       const centerB = this.hexCenter(b.col, b.row);
+      const faded = !this.opts.respectFog && (!revealedA || !revealedB);
 
       ctx.save();
-      if (!this.opts.respectFog && (!revealedA || !revealedB)) {
-        // GM-only: fainter + dashed to flag it crosses fogged ground.
-        ctx.globalAlpha = 0.5;
-        ctx.setLineDash([this.size * 0.18, this.size * 0.12]);
-      }
-      ctx.strokeStyle = "#4fa3d1";
-      ctx.lineWidth = Math.max(1.5, this.size * 0.16);
-      ctx.lineCap = "round";
+      this._applyRiverStrokeStyle(ctx, faded);
       ctx.beginPath();
       ctx.moveTo(centerA.x, centerA.y);
       ctx.lineTo(centerB.x, centerB.y);
@@ -446,16 +457,132 @@
       ctx.restore();
     }
 
-    // Rivers are drawn as chains of _paintRiverSegment() calls, one
-    // river-length pass after all hex fills are painted. On top of each
-    // river's own path, an end that borders open water (ocean/coast/lake)
-    // or another river's end gets an extra connecting segment out to that
-    // neighboring hex — so a river visibly flows into the sea or joins a
-    // tributary without the GM having to click that hex into its own path.
+    // Smooth curve through an ordered list of {x,y} world points, using a
+    // Catmull-Rom spline (converted to cubic beziers) — passes through
+    // every point exactly, rather than the old hex-center-to-hex-center
+    // straight segments, which kinked sharply at every hex a river
+    // crossed. The two hexes just outside each end of the run (if any) are
+    // used only to shape the curve's tangent at the ends, in the standard
+    // "clamp by duplicating the endpoint" way — they aren't extra points
+    // on the line themselves.
+    _strokeSmoothPath(ctx, points, faded) {
+      if (points.length < 2) return;
+      ctx.save();
+      this._applyRiverStrokeStyle(ctx, faded);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      if (points.length === 2) {
+        ctx.lineTo(points[1].x, points[1].y);
+      } else {
+        for (let i = 0; i < points.length - 1; i++) {
+          const p0 = points[i - 1] || points[i];
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const p3 = points[i + 2] || p2;
+          ctx.bezierCurveTo(
+            p1.x + (p2.x - p0.x) / 6,
+            p1.y + (p2.y - p0.y) / 6,
+            p2.x - (p3.x - p1.x) / 6,
+            p2.y - (p3.y - p1.y) / 6,
+            p2.x,
+            p2.y
+          );
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // True for a hex on the outermost ring of the grid — the only hexes a
+    // river's dangling end can sensibly be extended out to the true map
+    // edge from (see _riverEdgeExtension). An end in the interior has no
+    // nearby edge to reach for; stretching it out to the border regardless
+    // of distance would draw a long, unrelated-looking line across
+    // territory the river never actually crosses.
+    _isBoundaryHex(col, row) {
+      return col === 0 || col === this.cols - 1 || row === 0 || row === this.rows - 1;
+    }
+
+    // Extends a river's dangling end at `boundaryPoint` out to the true
+    // edge of the map, continuing in the direction it was already heading
+    // (away from `awayFromPoint`, typically the next hex in from the end)
+    // — so it reads as flowing off the map rather than stopping abruptly a
+    // little short of the border. Returns null if there's no direction to
+    // extend along (a single-hex river with no map center to push away
+    // from either, degenerately) or the ray doesn't reach the boundary.
+    _riverEdgeExtension(boundaryPoint, awayFromPoint) {
+      const dx = boundaryPoint.x - awayFromPoint.x;
+      const dy = boundaryPoint.y - awayFromPoint.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) return null;
+      const dir = { x: dx / len, y: dy / len };
+      const b = this.bounds;
+      let t = Infinity;
+      if (dir.x > 0) t = Math.min(t, (b.maxX - boundaryPoint.x) / dir.x);
+      else if (dir.x < 0) t = Math.min(t, (b.minX - boundaryPoint.x) / dir.x);
+      if (dir.y > 0) t = Math.min(t, (b.maxY - boundaryPoint.y) / dir.y);
+      else if (dir.y < 0) t = Math.min(t, (b.minY - boundaryPoint.y) / dir.y);
+      if (!isFinite(t) || t <= 0) return null;
+      return { x: boundaryPoint.x + dir.x * t, y: boundaryPoint.y + dir.y * t };
+    }
+
+    // Hex keys this river's end at `key` already auto-connects to (open
+    // water, or another river's end). An end with any connections gets a
+    // stub instead of an edge extension — the two are mutually exclusive,
+    // since an end already visibly flowing into a lake has nowhere else to
+    // terminate toward.
+    _riverEndConnections(id, path, key, endpointOwners, WATER_TERRAINS) {
+      const pos = this._keyToColRow(key);
+      if (!pos) return [];
+      const out = [];
+      this.neighbors(pos.col, pos.row).forEach((n) => {
+        const nKey = this.hexKey(n.col, n.row);
+        if (path.indexOf(nKey) !== -1) return; // already part of this river's own path
+        const nHex = this.getHex(n.col, n.row);
+        const isWater = !!(nHex && WATER_TERRAINS[nHex.terrain]);
+        const otherRiverHere =
+          endpointOwners[nKey] && Array.from(endpointOwners[nKey]).some((otherId) => otherId !== id);
+        if (isWater || otherRiverHere) out.push(nKey);
+      });
+      return out;
+    }
+
+    // Splits a path into the maximal runs where every hex is revealed —
+    // used only for the public/fog-respecting view, where a river crossing
+    // from explored into unexplored territory has to stop right at the
+    // boundary rather than get the GM-only faded/dashed treatment.
+    _riverVisibleRuns(path) {
+      const runs = [];
+      let current = [];
+      path.forEach((key) => {
+        const pos = this._keyToColRow(key);
+        const hex = pos && this.getHex(pos.col, pos.row);
+        if (hex && hex.revealed !== false) {
+          current.push(key);
+        } else {
+          if (current.length) runs.push(current);
+          current = [];
+        }
+      });
+      if (current.length) runs.push(current);
+      return runs;
+    }
+
+    // Rivers are drawn as one smooth curve per river (or per visible run,
+    // under fog) passing through every hex center on its path, plus:
+    //   - where a dangling end sits on the outer ring of the map, a short
+    //     extension out to the true map edge (unless the GM has unchecked
+    //     "extend to map edge" for that particular end);
+    //   - where an end instead borders open water or another river, a
+    //     short straight stub connecting the two, same as before.
     _paintRivers(ctx) {
       const rivers = this.data.rivers || {};
       const ids = Object.keys(rivers);
       const WATER_TERRAINS = { ocean: true, coast: true, lake: true };
+      const gridCenter = {
+        x: (this.bounds.minX + this.bounds.maxX) / 2,
+        y: (this.bounds.minY + this.bounds.maxY) / 2,
+      };
 
       // hexKey -> set of river ids that start or end there, so a
       // neighboring river's end can be found in O(1) instead of rescanning
@@ -469,33 +596,81 @@
         });
       });
 
-      const drawnConnections = new Set(); // dedupe shared endpoint<->neighbor pairs
+      const drawnStubs = new Set(); // dedupe shared endpoint<->neighbor pairs
 
       ids.forEach((id) => {
-        const path = rivers[id].path || [];
-        for (let i = 0; i < path.length - 1; i++) {
-          this._paintRiverSegment(ctx, path[i], path[i + 1]);
-        }
+        const river = rivers[id];
+        const path = river.path || [];
         if (!path.length) return;
 
-        const endpoints = path.length > 1 ? [path[0], path[path.length - 1]] : [path[0]];
-        endpoints.forEach((key) => {
-          const pos = this._keyToColRow(key);
-          if (!pos) return;
-          this.neighbors(pos.col, pos.row).forEach((n) => {
-            const nKey = this.hexKey(n.col, n.row);
-            if (path.indexOf(nKey) !== -1) return; // already part of this river's own path
+        const startKey = path[0];
+        const endKey = path[path.length - 1];
+        const startPos = this._keyToColRow(startKey);
+        const endPos = this._keyToColRow(endKey);
+        const startCenter = this.hexCenter(startPos.col, startPos.row);
+        const endCenter = this.hexCenter(endPos.col, endPos.row);
 
-            const nHex = this.getHex(n.col, n.row);
-            const isWater = !!(nHex && WATER_TERRAINS[nHex.terrain]);
-            const otherRiverHere =
-              endpointOwners[nKey] && Array.from(endpointOwners[nKey]).some((otherId) => otherId !== id);
-            if (!isWater && !otherRiverHere) return;
+        const startConnections = this._riverEndConnections(id, path, startKey, endpointOwners, WATER_TERRAINS);
+        const endConnections =
+          path.length > 1 ? this._riverEndConnections(id, path, endKey, endpointOwners, WATER_TERRAINS) : [];
 
+        const wantsStartExtend =
+          river.edgeClipStart !== false && !startConnections.length && this._isBoundaryHex(startPos.col, startPos.row);
+        const wantsEndExtend =
+          path.length > 1 &&
+          river.edgeClipEnd !== false &&
+          !endConnections.length &&
+          this._isBoundaryHex(endPos.col, endPos.row);
+
+        const secondPos = path.length > 1 ? this._keyToColRow(path[1]) : null;
+        const secondPoint = secondPos ? this.hexCenter(secondPos.col, secondPos.row) : null;
+        const secondLastPos = path.length > 1 ? this._keyToColRow(path[path.length - 2]) : null;
+        const secondLastPoint = secondLastPos ? this.hexCenter(secondLastPos.col, secondLastPos.row) : null;
+
+        const startExtension = wantsStartExtend
+          ? this._riverEdgeExtension(startCenter, secondPoint || gridCenter)
+          : null;
+        const endExtension = wantsEndExtend
+          ? this._riverEdgeExtension(endCenter, secondLastPoint || gridCenter)
+          : null;
+
+        // ---- main path curve(s) ----
+        if (this.opts.respectFog) {
+          const runs = this._riverVisibleRuns(path);
+          runs.forEach((run) => {
+            const points = run.map((key) => {
+              const p = this._keyToColRow(key);
+              return this.hexCenter(p.col, p.row);
+            });
+            if (run[0] === startKey && startExtension) points.unshift(startExtension);
+            if (run[run.length - 1] === endKey && endExtension) points.push(endExtension);
+            this._strokeSmoothPath(ctx, points, false);
+          });
+        } else {
+          const points = path.map((key) => {
+            const p = this._keyToColRow(key);
+            return this.hexCenter(p.col, p.row);
+          });
+          if (startExtension) points.unshift(startExtension);
+          if (endExtension) points.push(endExtension);
+          const fullyRevealed = path.every((key) => {
+            const p = this._keyToColRow(key);
+            const hex = p && this.getHex(p.col, p.row);
+            return hex && hex.revealed !== false;
+          });
+          this._strokeSmoothPath(ctx, points, !fullyRevealed);
+        }
+
+        // ---- auto-connect stubs ----
+        [
+          { key: startKey, connections: startConnections },
+          { key: endKey, connections: endConnections },
+        ].forEach(({ key, connections }) => {
+          connections.forEach((nKey) => {
             const dedupeKey = [key, nKey].sort().join("|");
-            if (drawnConnections.has(dedupeKey)) return;
-            drawnConnections.add(dedupeKey);
-            this._paintRiverSegment(ctx, key, nKey);
+            if (drawnStubs.has(dedupeKey)) return;
+            drawnStubs.add(dedupeKey);
+            this._paintRiverStub(ctx, key, nKey);
           });
         });
       });
