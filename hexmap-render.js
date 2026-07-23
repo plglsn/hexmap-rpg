@@ -107,15 +107,6 @@
       this._entityIndex = null; // hexKey -> [entityId, ...]
       this._entityIndexDirty = true;
 
-      // Cheap cached flag: does any hex have a "major" named location? Used
-      // to decide whether the dynamic overlay pass can bail out early when
-      // zoomed out with nothing selected/hovered — without it, a major
-      // location's name would only ever get a chance to render once the
-      // view happened to already be zoomed in or something else forced a
-      // pass over the hexes.
-      this._hasMajorNamed = false;
-      this._namedFlagDirty = true;
-
       // Rivers — a named path of adjacent hex keys, drawn as a line across
       // the hexes it crosses (independent of each hex's own terrain).
       // { id: { name, notes, secret, path: ["col,row", ...] } }
@@ -233,22 +224,12 @@
         fields
       );
       this._bitmapDirty = true;
-      this._namedFlagDirty = true;
     }
 
     /** Call after mutating this.data directly (e.g. bulk reveal/hide, import). */
     invalidate() {
       this._bitmapDirty = true;
       this._entityIndexDirty = true;
-      this._namedFlagDirty = true;
-    }
-
-    _ensureMajorNamedFlag() {
-      if (!this._namedFlagDirty) return;
-      this._hasMajorNamed = Object.values(this.data.hexes).some(
-        (h) => h && h.poi && h.locationTier !== "minor"
-      );
-      this._namedFlagDirty = false;
     }
 
     // ---- entities (NPCs / events / locations) ----
@@ -592,21 +573,27 @@
       // Marker for hexes with a point of interest, using an icon for the
       // category instead of a plain dot. A name on its own doesn't earn a
       // marker — most hexes don't need a name at all; it's the POI
-      // category that flags a hex as worth marking.
+      // category that flags a hex as worth marking. A "major" location's
+      // name never renders as map text (see _drawDynamicOverlay), so its
+      // marker is made a bit bigger with a gold ring instead — something
+      // recognizable at a glance, without needing to zoom in or click to
+      // know it's important. A "minor" location keeps the plain marker;
+      // its name still surfaces on hover/select.
       if (hex.poi) {
-        const r = this.size * 0.22;
+        const isMajor = hex.locationTier !== "minor";
+        const r = this.size * (isMajor ? 0.27 : 0.22);
         const icon = POI_ICONS[hex.poi] || "●";
         ctx.beginPath();
         ctx.arc(center.x, center.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(20,20,20,0.85)";
+        ctx.fillStyle = isMajor ? "rgba(40,32,8,0.9)" : "rgba(20,20,20,0.85)";
         ctx.fill();
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 0.6;
+        ctx.strokeStyle = isMajor ? "#e2c94a" : "#fff";
+        ctx.lineWidth = isMajor ? 1.6 : 0.6;
         ctx.stroke();
         ctx.font = `${r * 1.3}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = isMajor ? "#e2c94a" : "#fff";
         ctx.fillText(icon, center.x, center.y + r * 0.05);
       }
     }
@@ -667,13 +654,12 @@
       const ctx = this.ctx;
       const showLabels = this.scale > 1.6;
       this._ensureEntityIndex();
-      this._ensureMajorNamedFlag();
       const hasEntities = Object.keys(this._entityIndex).length > 0;
 
       const hoverHex = this._keyToColRow(this.hoverKey);
       const needsHighlight = this.selected || hoverHex;
 
-      if (!showLabels && !needsHighlight && !hasEntities && !this._hasMajorNamed) return;
+      if (!showLabels && !needsHighlight && !hasEntities) return;
 
       const s = this.size;
       const topLeft = this.screenToWorld(0, 0);
@@ -689,16 +675,10 @@
           const isSelected = this.selected && this.selected.col === col && this.selected.row === row;
           const isHover = this.hoverKey === key;
           const hexEntityIds = this._entityIndex[key];
+          if (!isSelected && !isHover && !showLabels && !hexEntityIds) continue;
 
           const hex = this.getHex(col, row);
           if (!hex) continue;
-          // A "major" named location is drawn regardless of zoom level —
-          // that's the whole point of the tier (see below) — so it needs
-          // to opt back into the per-hex loop even when everything else
-          // says "skip, nothing to draw here."
-          const isMajorNamed = hex.poi && hex.locationTier !== "minor";
-          if (!isSelected && !isHover && !showLabels && !hexEntityIds && !isMajorNamed) continue;
-
           const revealed = hex.revealed !== false;
           const hideFromViewer = this.opts.respectFog && !revealed;
 
@@ -743,9 +723,16 @@
           // A "minor" location's name would otherwise clutter the map with
           // every little village at once, so it only appears once you've
           // actually selected or hovered that hex.
+          // A "major" location is meant to be a landmark you recognize by
+          // its (visually distinct) icon alone — see _paintHex — so its
+          // name never renders as text on the map itself, only in the
+          // sidebar once you click it. A "minor" location has no special
+          // icon, so its name still needs to show up somewhere: only when
+          // you've actually selected or hovered that hex, so it doesn't
+          // clutter the map at a glance.
           const highlighted = isSelected || isHover;
           const isMinor = hex.locationTier === "minor";
-          const showName = hex.poi && !hideFromViewer && (!isMinor || highlighted);
+          const showName = hex.poi && !hideFromViewer && isMinor && highlighted;
           const showPopulation = showLabels && !hideFromViewer && hex.population !== undefined && hex.population !== null;
 
           if (showName || showPopulation) {
