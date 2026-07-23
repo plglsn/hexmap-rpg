@@ -437,6 +437,44 @@ html, body {
   display: flex;
 }
 
+/* Player-view banner — deliberately a different color from the placement
+   banner above (blue instead of gold) so it can't be mistaken for one of
+   the transient "you're mid-action" banners; this one stays up the whole
+   time you're previewing, however long that is. */
+#player-view-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: #4fa3d1;
+  color: #0a1620;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  max-width: calc(100vw - 40px);
+}
+
+#player-view-banner button {
+  background: rgba(0,0,0,0.15);
+  border: none;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#map-wrap.player-view-active #map-canvas {
+  outline: 3px solid #4fa3d1;
+  outline-offset: -3px;
+}
+
 #placement-banner button {
   background: rgba(0,0,0,0.15);
   border: none;
