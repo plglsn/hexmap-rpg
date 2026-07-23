@@ -7918,6 +7918,55 @@ const HEX_DATA = {
    "notes": "",
    "hex": "3,44",
    "revealed": true
+  },
+  "entity_mry587f2rgz6": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Scholar",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry590usnbj5": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Noble",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry591dr22hy": {
+   "type": "npc",
+   "name": "",
+   "notes": "Dwarf Urchin",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry59qwqhik7": {
+   "type": "npc",
+   "name": "",
+   "notes": "Elf Noble",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry5a6ibblew": {
+   "type": "npc",
+   "name": "",
+   "notes": "Duckman Scout",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry5bswmlufa": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Knight",
+   "hex": "5,45",
+   "revealed": true
+  },
+  "entity_mry5cbeu765l": {
+   "type": "npc",
+   "name": "",
+   "notes": "Human Blacksmith",
+   "hex": "5,45",
+   "revealed": true
   }
  },
  "poiTypes": [
