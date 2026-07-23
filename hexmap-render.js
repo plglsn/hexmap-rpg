@@ -679,49 +679,78 @@
           const center = this.hexCenter(col, row);
           const screen = this.worldToScreen(center.x, center.y);
 
+          const screenCorners =
+            isSelected || isHover || (showLabels && !hideFromViewer)
+              ? this.hexCorners(center.x, center.y).map((p) => this.worldToScreen(p.x, p.y))
+              : null;
+
           // Skip the hover/selection outline on a hex that isn't otherwise
           // drawn at all (public build, unrevealed, no rumour) — an
           // outline appearing under the cursor over "empty" space would
           // itself reveal the hex grid out there, undermining the point of
           // not painting it in the first place.
           if ((isSelected || isHover) && (!hideFromViewer || hex.rumours)) {
-            const corners = this.hexCorners(center.x, center.y).map((p) => this.worldToScreen(p.x, p.y));
             ctx.beginPath();
-            corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+            screenCorners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
             ctx.closePath();
             ctx.lineWidth = isSelected ? 3 : 1.5;
             ctx.strokeStyle = isSelected ? "#ffdd55" : "#ffffff";
             ctx.stroke();
           }
 
+          // Coordinates are only shown for the one hex under the cursor or
+          // selected, not every hex in view — labeling all of them at once
+          // was the main source of clutter/overlap between neighbors.
+          if ((isSelected || isHover) && !hideFromViewer) {
+            this._fillHaloText(
+              ctx,
+              `${col},${row}`,
+              screen.x,
+              screen.y - s * this.scale * 0.5,
+              `${Math.max(8, 9 * this.scale)}px sans-serif`,
+              "rgba(0,0,0,0.8)"
+            );
+          }
+
           if (showLabels && !hideFromViewer) {
-            ctx.font = `${Math.max(8, 9 * this.scale)}px sans-serif`;
-            ctx.fillStyle = "rgba(0,0,0,0.55)";
-            ctx.textAlign = "center";
-            ctx.fillText(`${col},${row}`, screen.x, screen.y - s * this.scale * 0.5);
+            // Clip name/population text to this hex's own outline so a
+            // long name can't visually bleed into a neighboring hex —
+            // it's cropped at the border instead of overlapping.
+            ctx.save();
+            ctx.beginPath();
+            screenCorners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+            ctx.closePath();
+            ctx.clip();
 
             // A name only gets shown alongside a point of interest — a
             // POI with no custom name yet just falls back to its category
             // ("Ruins") so the map isn't blank for it.
             let lineY = screen.y + s * this.scale * 0.7;
             if (hex.poi) {
-              ctx.font = `bold ${Math.max(9, 10 * this.scale)}px sans-serif`;
-              ctx.fillStyle = "#111";
-              ctx.fillText(hex.name || hex.poi, screen.x, lineY);
+              this._fillHaloText(
+                ctx,
+                hex.name || hex.poi,
+                screen.x,
+                lineY,
+                `bold ${Math.max(9, 10 * this.scale)}px sans-serif`,
+                "#111"
+              );
               lineY += s * this.scale * 0.42;
             }
 
             // Population is independent of name/POI — even a plain,
             // unnamed hex can carry a small population figure.
             if (hex.population !== undefined && hex.population !== null) {
-              ctx.font = `${Math.max(8, 8.5 * this.scale)}px sans-serif`;
-              ctx.fillStyle = "rgba(0,0,0,0.7)";
-              ctx.fillText(
+              this._fillHaloText(
+                ctx,
                 hex.population === 0 ? "Uninhabited" : `Pop ${hex.population}`,
                 screen.x,
-                lineY
+                lineY,
+                `${Math.max(8, 8.5 * this.scale)}px sans-serif`,
+                "rgba(0,0,0,0.8)"
               );
             }
+            ctx.restore();
           }
 
           if (hexEntityIds && !hideFromViewer) {
@@ -785,6 +814,22 @@
       if (!key) return null;
       const [col, row] = key.split(",").map(Number);
       return { col, row };
+    }
+
+    // Text with a light halo stroked behind it, so a label stays legible
+    // over any terrain color and reads as clearly belonging to its own hex
+    // rather than blurring into a neighboring hex's label sitting nearby.
+    _fillHaloText(ctx, text, x, y, font, fillStyle) {
+      ctx.save();
+      ctx.font = font;
+      ctx.textAlign = "center";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.strokeText(text, x, y);
+      ctx.fillStyle = fillStyle;
+      ctx.fillText(text, x, y);
+      ctx.restore();
     }
 
     // ---- interaction ----
