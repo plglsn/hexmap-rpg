@@ -609,7 +609,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Natural Wonder"
+   "poi": "Natural Wonder",
+   "locationTier": "minor"
   },
   "3,45": {
    "terrain": "grassland",
@@ -1151,11 +1152,12 @@ const HEX_DATA = {
   },
   "6,46": {
    "terrain": "desert",
-   "name": "Hotsprings",
+   "name": "Hotspring Village",
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Settlement"
+   "poi": "Settlement",
+   "locationTier": "minor"
   },
   "6,47": {
    "terrain": "desert",
@@ -1321,7 +1323,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Landmark"
+   "poi": "Landmark",
+   "locationTier": "minor"
   },
   "7,44": {
    "terrain": "desert",
@@ -1353,7 +1356,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Landmark"
+   "poi": "Landmark",
+   "locationTier": "minor"
   },
   "7,48": {
    "terrain": "lake",
@@ -1530,7 +1534,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Landmark"
+   "poi": "Landmark",
+   "locationTier": "minor"
   },
   "8,47": {
    "terrain": "desert",
@@ -1709,7 +1714,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Landmark"
+   "poi": "Landmark",
+   "locationTier": "minor"
   },
   "9,45": {
    "terrain": "forest",
@@ -2090,7 +2096,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Shrine"
+   "poi": "Shrine",
+   "locationTier": "minor"
   },
   "11,45": {
    "terrain": "desert",
@@ -2270,7 +2277,8 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Fortress"
+   "poi": "Fortress",
+   "locationTier": "minor"
   },
   "12,45": {
    "terrain": "forest",
