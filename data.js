@@ -987,7 +987,9 @@ const HEX_DATA = {
    "notes": "",
    "rumours": "",
    "revealed": true,
-   "poi": "Fortress"
+   "poi": "Fortress",
+   "locationTier": "major",
+   "population": 120
   },
   "5,46": {
    "terrain": "swamp",
@@ -1181,7 +1183,8 @@ const HEX_DATA = {
    "rumours": "",
    "revealed": true,
    "poi": "Settlement",
-   "locationTier": "minor"
+   "locationTier": "minor",
+   "population": 50
   },
   "6,47": {
    "terrain": "desert",
